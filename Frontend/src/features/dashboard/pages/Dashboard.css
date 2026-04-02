@@ -1,0 +1,104 @@
+.dashboard-container {
+  display: flex;
+  background: radial-gradient(circle at top, #1a1446, #050214);
+  min-height: 100vh;
+  color: white;
+  padding: 20px;
+  gap: 20px;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.top-row,
+.bottom-row {
+  display: flex;
+  gap: 20px;
+}
+
+.card.small {
+  flex: 0.3;
+}
+
+.card.large {
+  flex: 1;
+}
+
+.card {
+  padding: 60px;
+  border-radius: 20px;
+  backdrop-filter: blur(25px);
+  box-shadow: 0 0 20px rgba(100, 100, 255, 0.2);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.bg-card {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.grdcard {
+  background-size: cover;       
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.img-zoom {
+  background-size: 140%;       
+  background-position: center;
+}
+
+.grdcard::before,
+.bg-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    120deg,
+    rgba(10, 5, 30, 0.6),
+    rgba(10, 5, 30, 0.2)
+  );
+  z-index: 0;
+}
+
+.card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* BUTTON */
+.add-btn {
+  position: static;
+  top: 5px;
+  right: 10px;
+  background: #7c3aed;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  color: white;
+  cursor: pointer;
+}
+
+/* GROUPS */
+.group-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.group-list span {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 6px 10px;
+  border-radius: 10px;
+}
