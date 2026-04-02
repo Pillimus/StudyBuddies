@@ -6,7 +6,7 @@
     "module": "ESNext",
     "skipLibCheck": true,
 
-    /* THIS IS CRITICAL */
+    
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
 
