@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import "./Navbar.css";
 import logo from "../../assets/logo.png";
 
-type NavItem = "home" | "tasks" | "calendar" | "profile";
+
+type NavItem = "home" | "tasks" | "calendar" | "profile" | "files";   
 
 const Navbar = () => {
   const [active, setActive] = useState<NavItem>("home");
@@ -21,6 +22,7 @@ const Navbar = () => {
 
     if (id === "home") navigate("/");
     if (id === "calendar") navigate("/events");
+    if (id === "tasks") navigate("/files");
   };
 
   return (
