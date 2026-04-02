@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "./Navbar.css";
 import logo from "../../assets/logo.png";
 
-type NavItem = "home" | "messages" | "tasks" | "calendar" | "profile";
+type NavItem = "home" | "tasks" | "calendar" | "profile";
 
 const Navbar = () => {
   const [active, setActive] = useState<NavItem>("home");
@@ -11,7 +11,6 @@ const Navbar = () => {
 
   const navItems: { id: NavItem; icon: string }[] = [
     { id: "home", icon: "🏠" },
-    { id: "messages", icon: "💬" },
     { id: "tasks", icon: "📋" },
     { id: "calendar", icon: "📅" },
     { id: "profile", icon: "👤" },
@@ -21,14 +20,13 @@ const Navbar = () => {
     setActive(id);
 
     if (id === "home") navigate("/");
-    if (id === "messages") navigate("/messages");
     if (id === "calendar") navigate("/events");
   };
 
   return (
     <div className="sidebar">
       <div className="logo">
-          <img src={logo} alt="Study Buddy Logo" />
+        <img src={logo} alt="Study Buddy Logo" />
       </div>
       <div className="nav-items">
         {navItems.map((item) => (

@@ -5,7 +5,6 @@ import Login from "./features/auth/pages/Login";
 import Signup from "./features/auth/pages/SignUp";
 
 import Dashboard from "./features/dashboard/pages/Dashboard";
-import Messages from "./features/Messages/Message";
 import Events from "./features/Calendar/event";
 
 function App() {
@@ -27,12 +26,12 @@ function App() {
     );
   }
 
-  // ✅ Logged in → show app
+
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/messages" element={<Messages />} />
+        
         <Route path="/events" element={<Events />} />
       </Routes>
     </BrowserRouter>

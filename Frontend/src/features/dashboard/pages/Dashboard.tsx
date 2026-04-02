@@ -28,12 +28,11 @@ const Dashboard = () => {
             style={{ backgroundImage: `url(${bgImage})` }}
           >
             <h2>Hi UserName</h2>
+            <p> Ready to get started?</p>
+            <br/>
             <p>• 3 Tasks left</p>
             <p>• 2 events left</p>
-            <p>• 4 unread messages</p>
           </div>
-
-        
           <div
             className="card bg-card large"
             style={{
@@ -42,10 +41,8 @@ const Dashboard = () => {
               flexDirection: "column",
               height: "150px",      
               overflow: "hidden",    
-            }}
-          >
+            }}>
             <h2>Tasks</h2>
-
             {/* INPUT */}
             <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
               <input
