@@ -24,12 +24,13 @@ app.post("/api/addTask", async (req, res, next) => {
 app.post("/api/addCEvent", async (req, res, next) => {
   // incoming: userId, title, description, time
   // outgoing: error
-  const { userId, title, description, time } = req.body;
+  const { userId, title, description, time, date } = req.body;
   const newEvent = {
     UserId: userId,
     Title: title,
     Description: description,
     Time: time,
+    Date: date,
   };
   var error = "";
   try {
