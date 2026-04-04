@@ -2,25 +2,59 @@ import React, { useState } from "react";
 
 type Props = {
   setPage: (page: "login" | "signup") => void;
+  setIsAuthenticated: (val: boolean) => void;
 };
 
-const SignupForm = ({ setPage }: Props) => {
+const SignupForm = ({ setPage, setIsAuthenticated }: Props) => {
   const [name, setName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    if (password !== confirmPassword) {
-      alert("Passwords do not match");
+  if (password !== confirmPassword) {
+    alert("Passwords do not match");
+    return;
+  }
+
+  try {
+    const res = await fetch("http://localhost:5000/api/signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: name,
+        lastName: lastName,
+        email: email,
+        password: password,
+      }),
+    });
+
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
+
+    if (data.error && data.error.length > 0) {
+      alert(data.error);
       return;
     }
 
-    console.log({ name, email, password });
-  };
+    localStorage.setItem("user", JSON.stringify({
+      email: email,
+      firstName: name,
+      lastName: lastName
+    }));
 
+    setIsAuthenticated(true);
+
+  } catch (err) {
+    console.error("REAL ERROR:", err);
+    alert("Server error");
+  }
+};
   return (
     <div style={{ width: "380px", display: "flex", flexDirection: "column", gap: "18px" }}>
       
@@ -42,13 +76,33 @@ const SignupForm = ({ setPage }: Props) => {
 
         {/* NAME */}
         <div style={{ marginBottom: "15px" }}>
-          <label style={{ fontSize: "12px" }}>Name</label>
+          <label style={{ fontSize: "12px" }}>First Name</label>
           <div style={{ borderBottom: "1px solid #aaa", paddingBottom: "6px" }}>
             <input
               type="text"
-              placeholder="Enter your name"
+              placeholder="Enter your first name"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              style={{
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                color: "white",
+                width: "100%",
+              }}
+            />
+          </div>
+        </div>
+
+        {/* LAST NAME */}
+        <div style={{ marginBottom: "15px" }}>
+          <label style={{ fontSize: "12px" }}>Last Name</label>
+          <div style={{ borderBottom: "1px solid #aaa", paddingBottom: "6px" }}>
+            <input
+              type="text"
+              placeholder="Enter your last name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
               style={{
                 background: "transparent",
                 border: "none",

@@ -9,6 +9,50 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+ 
+  const handleLogin = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email,
+          password: password,
+        }),
+      });
+
+      const data = await res.json();
+
+      console.log("LOGIN RESPONSE:", data); 
+
+  
+      if (!res.ok) {
+        alert("Server error");
+        return;
+      }
+
+      if (data.error && data.error.length > 0) {
+        alert(data.error);
+        return;
+      }
+
+      if (data.id === -1) { 
+        alert("Invalid login");
+        return;
+      }
+
+    
+      localStorage.setItem("user", JSON.stringify(data));
+      setIsAuthenticated(true);
+
+    } catch (err) {
+      console.error(err);
+      alert("Server error. Make sure backend is running.");
+    }
+  };
+
   return (
     <div
       style={{
@@ -18,10 +62,8 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
         gap: "20px",
       }}
     >
-      {/* TITLE */}
       <h2 style={{ fontSize: "30px", marginBottom: "10px" }}>Sign in</h2>
 
-      {/* SUBTEXT */}
       <p style={{ fontSize: "15px", lineHeight: "1.6" }}>
         If you don’t have an account register <br />
         You can{" "}
@@ -36,16 +78,7 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
       {/* EMAIL */}
       <div>
         <label style={{ fontSize: "12px", opacity: 0.8 }}>Email</label>
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            borderBottom: "1px solid #aaa",
-            paddingBottom: "6px",
-            marginTop: "5px",
-          }}
-        >
+        <div style={{ display: "flex", alignItems: "center", borderBottom: "1px solid #aaa", paddingBottom: "6px", marginTop: "5px" }}>
           <span style={{ marginRight: "8px" }}>📧</span>
           <input
             type="email"
@@ -64,18 +97,10 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
         </div>
       </div>
 
+      {/* PASSWORD */}
       <div>
         <label style={{ fontSize: "12px", opacity: 0.8 }}>Password</label>
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            borderBottom: "1px solid #aaa",
-            paddingBottom: "6px",
-            marginTop: "5px",
-          }}
-        >
+        <div style={{ display: "flex", alignItems: "center", borderBottom: "1px solid #aaa", paddingBottom: "6px", marginTop: "5px" }}>
           <span style={{ marginRight: "8px" }}>🔒</span>
           <input
             type="password"
@@ -91,18 +116,13 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
               fontSize: "14px",
             }}
           />
-          <span style={{ marginLeft: "8px", cursor: "pointer" }}>👁️</span>
-        </div>
-
-        <div style={{ textAlign: "right", fontSize: "12px", marginTop: "5px" }}>
-          Forgot Password ?
         </div>
       </div>
 
-      {/* LOGIN BUTTON */}
+      {/*LOGIN BUTTON */}
       <button
         type="button"
-        onClick={() => setIsAuthenticated(true)}
+        onClick={handleLogin}
         style={{
           width: "100%",
           padding: "14px",
@@ -117,12 +137,10 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
         Login
       </button>
 
-      {/* OR TEXT */}
       <div style={{ textAlign: "center", fontSize: "13px", color: "#7c7cff" }}>
         or continue with
       </div>
 
-      {/* GOOGLE */}
       <div style={{ textAlign: "center", marginTop: "10px" }}>
         <img
           src="https://www.svgrepo.com/show/475656/google-color.svg"
