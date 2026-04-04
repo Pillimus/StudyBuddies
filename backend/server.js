@@ -5,7 +5,7 @@ const client = new MongoClient(url);
 client.connect();
 
 app.post("/api/addTask", async (req, res, next) => {
-  // incoming: userId, color
+  // incoming: userId, task, deadline
   // outgoing: error
   const { userId, task, deadline } = req.body;
   const newTask = { Task: task, Deadline: deadline, UserId: userId };
@@ -16,7 +16,64 @@ app.post("/api/addTask", async (req, res, next) => {
   } catch (e) {
     error = e.toString();
   }
-  cardList.push(card);
+  taskList.push(task);
+  var ret = { error: error };
+  res.status(200).json(ret);
+});
+
+app.post("/api/addCEvent", async (req, res, next) => {
+  // incoming: userId, title, description, time
+  // outgoing: error
+  const { userId, title, description, time } = req.body;
+  const newEvent = {
+    UserId: userId,
+    Title: title,
+    Description: description,
+    Time: time,
+  };
+  var error = "";
+  try {
+    const db = client.db("Users");
+    const result = db.collection("CEvents").updateOne(newEvent);
+  } catch (e) {
+    error = e.toString();
+  }
+  cEventList.push(title);
+  var ret = { error: error };
+  res.status(200).json(ret);
+});
+
+app.post("/api/addDocument", async (req, res, next) => {
+  // incoming: userId, title, contents
+  // outgoing: error
+  const { userId, title, contents } = req.body;
+  const newDocument = { UserId: userId, Title: title, Contents: contents };
+  var error = "";
+  try {
+    const db = client.db("Users");
+    const result = db.collection("Documents").updateOne(newDocument);
+  } catch (e) {
+    error = e.toString();
+  }
+  documentsList.push(title);
+  var ret = { error: error };
+  res.status(200).json(ret);
+});
+
+app.post("/api/updateGroup", async (req, res, next) => {
+  // incoming: userId, group
+  // outgoing: error
+  const { userId, group } = req.body;
+  const user = { UserId: userId };
+  const newGroup = { $set: { Group: group } };
+  var error = "";
+  try {
+    const db = client.db("Users");
+    const result = db.collection("Accounts").updateOne(user, newGroup);
+  } catch (e) {
+    error = e.toString();
+  }
+  groupList.push(group);
   var ret = { error: error };
   res.status(200).json(ret);
 });
@@ -57,7 +114,7 @@ app.post("/api/searchTasks", async (req, res, next) => {
     .toArray();
   var _ret = [];
   for (var i = 0; i < results.length; i++) {
-    _ret.push(results[i].Card);
+    _ret.push(results[i].task);
   }
   var ret = { results: _ret, error: error };
   res.status(200).json(ret);
