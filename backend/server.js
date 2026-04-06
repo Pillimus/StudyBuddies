@@ -1,12 +1,29 @@
-const express = require("express");
+const express = require('express');
 const app = express();
+const mongoose = require('mongoose');
+const MongoClient = require('mongodb').MongoClient;
+const fs = require('fs');
+const jwt = require('jsonwebtoken');
 
-const MongoClient = require("mongodb").MongoClient;
-const url =
-  "mongodb+srv://RWUser:h6SmYQJKhA539tbG@mernproject.jqcxaqy.mongodb.net/?appName=MernProject";
+const noteRoutes = require('./uploadFiles/Notes');
+const eventRoutes = require('./events/event-operations');
+
+const url = "mongodb+srv://RWUser:h6SmYQJKhA539tbG@mernproject.jqcxaqy.mongodb.net/?appName=MernProject";
+
 const client = new MongoClient(url);
+client.connect()
+  .then(() => console.log('MongoClient connected'))
+  .catch(err => console.error(err));
 
-app.use(express.json()); 
+mongoose.connect(url)
+  .then(() => console.log('Mongoose connected'))
+  .catch(err => console.error(err));
+
+// create uploads folder if it doesn't exist
+if (!fs.existsSync('uploaded_file_list')) fs.mkdirSync('uploaded_file_list');
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true })); 
 
 client.connect().then(() => {
   console.log("MongoDB connected");
@@ -136,7 +153,7 @@ app.post("/api/signup", async (req, res, next) => {
   // incoming: name, email, password
   // outgoing: error
 
-  const { name, email, password } = req.body;
+  const { name, lastName, email, password } = req.body;
 
   var error = "";
 
@@ -156,7 +173,7 @@ app.post("/api/signup", async (req, res, next) => {
         Email: email,
         Password: password,
         FirstName: name,
-        LastName: ""
+        LastName: lastName
       };
 
       await db.collection("Accounts").insertOne(newUser);
@@ -168,7 +185,6 @@ app.post("/api/signup", async (req, res, next) => {
   var ret = { error: error };
   res.status(200).json(ret);
 });
-
 app.post("/api/searchTasks", async (req, res, next) => {
   // incoming: userId, search
   // outgoing: results[], error
@@ -190,6 +206,18 @@ app.post("/api/searchTasks", async (req, res, next) => {
 
 app.get("/api/ping", (req, res, next) => {
   res.status(200).json({ message: "Hello World" });
+});
+
+app.use('/api/notes', noteRoutes);
+app.use('/api/events', eventRoutes);
+
+app.get('/test-token', (req, res) => {
+  const token = jwt.sign(
+    { userId: '655b4e5f1c9d440000d1a3f7' },
+    'secretKey',
+    { expiresIn: '1h' }
+  );
+  res.json({ token });
 });
 
 app.listen(5000); // start Node + Express server on port 5000
