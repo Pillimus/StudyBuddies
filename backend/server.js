@@ -271,6 +271,10 @@ app.post("/api/searchTasks", async (req, res, next) => {
     _ret.push(results[i].Task);
   }
   var ret = { results: _ret, error: error };
+  for (var i = 0; i < results.length; i++) {
+    _ret.push(results[i].Task);
+  }
+  var ret = { results: _ret, error: error };
   res.status(200).json(ret);
 });
 
