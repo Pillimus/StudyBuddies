@@ -9,7 +9,10 @@ type Props = {
 const Signup = ({ setPage, setIsAuthenticated }: Props) => {
   return (
     <AuthLayout>
-      <SignupForm setPage={setPage} />
+      <SignupForm 
+        setPage={setPage} 
+        setIsAuthenticated={setIsAuthenticated} 
+      />
     </AuthLayout>
   );
 };

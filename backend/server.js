@@ -1,197 +1,209 @@
-const express = require('express');
-const cors = require('cors');
-var cardList = 
-[
-  'Roy Campanella',
-  'Paul Molitor',
-  'Tony Gwynn',
-  'Dennis Eckersley',
-  'Reggie Jackson',
-  'Gaylord Perry',
-  'Buck Leonard',
-  'Rollie Fingers',
-  'Charlie Gehringer',
-  'Wade Boggs',
-  'Carl Hubbell',
-  'Dave Winfield',
-  'Jackie Robinson',
-  'Ken Griffey, Jr.',
-  'Al Simmons',
-  'Chuck Klein',
-  'Mel Ott',
-  'Mark McGwire',
-  'Nolan Ryan',
-  'Ralph Kiner',
-  'Yogi Berra',
-  'Goose Goslin',
-  'Greg Maddux',
-  'Frankie Frisch',
-  'Ernie Banks',
-  'Ozzie Smith',
-  'Hank Greenberg',
-  'Kirby Puckett',
-  'Bob Feller',
-  'Dizzy Dean',
-  'Joe Jackson',
-  'Sam Crawford',
-  'Barry Bonds',
-  'Duke Snider',
-  'George Sisler',
-  'Ed Walsh',
-  'Tom Seaver',
-  'Willie Stargell',
-  'Bob Gibson',
-  'Brooks Robinson',
-  'Steve Carlton',
-  'Joe Medwick',
-  'Nap Lajoie',
-  'Cal Ripken, Jr.',
-  'Mike Schmidt',
-  'Eddie Murray',
-  'Tris Speaker',
-  'Al Kaline',
-  'Sandy Koufax',
-  'Willie Keeler',
-  'Pete Rose',
-  'Robin Roberts',
-  'Eddie Collins',
-  'Lefty Gomez',
-  'Lefty Grove',
-  'Carl Yastrzemski',
-  'Frank Robinson',
-  'Juan Marichal',
-  'Warren Spahn',
-  'Pie Traynor',
-  'Roberto Clemente',
-  'Harmon Killebrew',
-  'Satchel Paige',
-  'Eddie Plank',
-  'Josh Gibson',
-  'Oscar Charleston',
-  'Mickey Mantle',
-  'Cool Papa Bell',
-  'Johnny Bench',
-  'Mickey Cochrane',
-  'Jimmie Foxx',
-  'Jim Palmer',
-  'Cy Young',
-  'Eddie Mathews',
-  'Honus Wagner',
-  'Paul Waner',
-  'Grover Alexander',
-  'Rod Carew',
-  'Joe DiMaggio',
-  'Joe Morgan',
-  'Stan Musial',
-  'Bill Terry',
-  'Rogers Hornsby',
-  'Lou Brock',
-  'Ted Williams',
-  'Bill Dickey',
-  'Christy Mathewson',
-  'Willie McCovey',
-  'Lou Gehrig',
-  'George Brett',
-  'Hank Aaron',
-  'Harry Heilmann',
-  'Walter Johnson',
-  'Roger Clemens',
-  'Ty Cobb',
-  'Whitey Ford',
-  'Willie Mays',
-  'Rickey Henderson',
-  'Babe Ruth'
-];
-
-
-
+const express = require("express");
 const app = express();
-app.use(cors());
-// app.use(bodyParser.json());
-app.use(express.json());
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const MongoClient = require("mongodb").MongoClient;
+const url =
+  "mongodb+srv://RWUser:h6SmYQJKhA539tbG@mernproject.jqcxaqy.mongodb.net/?appName=MernProject";
+const client = new MongoClient(url);
 
-app.post('/api/addcard', async (req, res, next) =>
-{
-  // incoming: userId, color
+app.use(express.json()); 
+
+client.connect().then(() => {
+  console.log("MongoDB connected");
+}).catch(err => console.error(err));
+
+var taskList = [];
+var cEventList = [];
+var documentsList = [];
+var groupList = [];
+
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+  );
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PATCH, DELETE, OPTIONS",
+  );
+  next();
+});
+
+app.post("/api/addTask", async (req, res, next) => {
+  // incoming: userId, task, deadline
   // outgoing: error
-
-  var error = '';
-
-  const { userId, card } = req.body;
-
-  // TEMP FOR LOCAL TESTING.
-  cardList.push( card );
-
+  const { userId, task, deadline } = req.body;
+  const newTask = { Task: task, Deadline: deadline, UserId: userId };
+  var error = "";
+  try {
+    const db = client.db("Users");
+    const result = await db.collection("Tasks").insertOne(newTask);
+  } catch (e) {
+    error = e.toString();
+  }
+  taskList.push(task);
   var ret = { error: error };
   res.status(200).json(ret);
 });
 
-app.post("/api/login", async (req, res, next) => {
-  // incoming: login, password
-  // outgoing: id, firstName, lastName, error
+app.post("/api/addCEvent", async (req, res, next) => {
+  // incoming: userId, title, description, time
+  // outgoing: error
+  const { userId, title, description, time, date } = req.body;
+  const newEvent = {
+    UserId: userId,
+    Title: title,
+    Description: description,
+    Time: time,
+    Date: date,
+  };
   var error = "";
-
-  const { login, password } = req.body;
-
-  var id = -1;
-  var fn = '';
-  var ln = '';
-
-  if( login.toLowerCase() == 'rickl' && password == 'COP4331' )
-  {
-    id = 1;
-    fn = 'Rick';
-    ln = 'Leinecker';
+  try {
+    const db = client.db("Users");
+    const result = await db.collection("CEvents").insertOne(newEvent);
+  } catch (e) {
+    error = e.toString();
   }
-  else
-  {
-    error = 'Invalid user name/password';
-  }
-
-  var ret = { id:id, firstName:fn, lastName:ln, error:error};
+  cEventList.push(title);
+  var ret = { error: error };
   res.status(200).json(ret);
 });
 
+app.post("/api/addDocument", async (req, res, next) => {
+  // incoming: userId, title, contents
+  // outgoing: error
+  const { userId, title, contents } = req.body;
+  const newDocument = { UserId: userId, Title: title, Contents: contents };
+  var error = "";
+  try {
+    const db = client.db("Users");
+    const result = await db.collection("Documents").insertOne(newDocument); 
+  } catch (e) {
+    error = e.toString();
+  }
+  documentsList.push(title);
+  var ret = { error: error };
+  res.status(200).json(ret);
+});
 
-app.post('/api/searchcards', async (req, res, next) => 
-{
+app.post("/api/updateGroup", async (req, res, next) => {
+  // incoming: userId, group
+  // outgoing: error
+  const { userId, group } = req.body;
+  const user = { UserID: userId }; 
+  const newGroup = { $set: { Group: group } };
+  var error = "";
+  try {
+    const db = client.db("Users");
+    const result = await db.collection("Accounts").updateOne(user, newGroup);
+  } catch (e) {
+    error = e.toString();
+  }
+  groupList.push(group);
+  var ret = { error: error };
+  res.status(200).json(ret);
+});
+
+app.post("/api/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const db = client.db("Users");
+
+    
+    const user = await db.collection("Accounts").findOne({ Email: email });
+
+    if (!user) {
+      return res.status(400).json({ error: "User not found" });
+    }
+
+    
+    const isMatch = await bcrypt.compare(password, user.Password);
+
+    if (!isMatch) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+    const token = jwt.sign(
+      { userId: user.UserID },
+      "secretkey",
+      { expiresIn: "1h" }
+    );
+
+    res.status(200).json({ token });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+app.post("/api/signup", async (req, res, next) => {
+  // incoming: name, email, password
+  // outgoing: token, error
+
+  const { name, email, password } = req.body;
+
+  var error = "";
+  var token = "";
+
+  try {
+    const db = client.db("Users");
+
+    const existing = await db
+      .collection("Accounts")
+      .find({ Email: email })
+      .toArray();
+
+    if (existing.length > 0) {
+      error = "User already exists";
+    } else {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const newUser = {
+        UserID: Math.floor(Math.random() * 1000000),
+        Email: email,
+         Password: hashedPassword,
+        FirstName: name,
+        LastName: ""
+      };
+
+      await db.collection("Accounts").insertOne(newUser);
+
+      token = jwt.sign(
+        { email: email },
+        "secretkey",
+        { expiresIn: "1h" }
+      );
+    }
+  } catch (e) {
+    error = e.toString();
+  }
+
+  var ret = { token: token, error: error };
+  res.status(200).json(ret);
+});
+
+app.post("/api/searchTasks", async (req, res, next) => {
   // incoming: userId, search
   // outgoing: results[], error
   var error = "";
   const { userId, search } = req.body;
-  var _search = search.toLowerCase().trim();
+  var _search = search.trim();
+  const db = client.db("Users");
+  const results = await db
+    .collection("Tasks")
+    .find({ Task: { $regex: _search + ".*", $options: "i" } })
+    .toArray();
   var _ret = [];
-
-  for( var i=0; i<cardList.length; i++ )
-  {
-    var lowerFromList = cardList[i].toLocaleLowerCase();
-    if( lowerFromList.indexOf( _search ) >= 0 )
-    {
-      _ret.push( cardList[i] );
-    }
+  for (var i = 0; i < results.length; i++) {
+    _ret.push(results[i].Task);
   }
-
-  var ret = {results:_ret, error:''};
+  var ret = { results: _ret, error: error };
   res.status(200).json(ret);
 });
 
-
-app.use((req, res, next) => 
-{
-
-  app.get("/api/ping", (req, res, next) => {
-	res.status(200).json({ message: "Hello World" });
-  });
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Origin, X-Requested-With, Content-Type, Accept, Authorization'
-  );
-  res.setHeader(
-    'Access-Control-Allow-Methods',
-    'GET, POST, PATCH, DELETE, OPTIONS'
-  );
-  next();
+app.get("/api/ping", (req, res, next) => {
+  res.status(200).json({ message: "Hello World" });
 });
 
 app.listen(5000); // start Node + Express server on port 5000

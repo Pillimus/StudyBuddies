@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-
+import { googleLogin } from "../../../api/googleLogin";
 type Props = {
   setPage: (page: "login" | "signup") => void;
   setIsAuthenticated: (val: boolean) => void;
@@ -10,48 +10,34 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
   const [password, setPassword] = useState("");
 
  
-  const handleLogin = async () => {
-    try {
-      const res = await fetch("http://localhost:5000/api/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: email,
-          password: password,
-        }),
-      });
+const handleLogin = async () => {
+  try {
+    const res = await fetch("http://localhost:5000/api/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: email,
+        password: password,
+      }),
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      console.log("LOGIN RESPONSE:", data); 
-
-  
-      if (!res.ok) {
-        alert("Server error");
-        return;
-      }
-
-      if (data.error && data.error.length > 0) {
-        alert(data.error);
-        return;
-      }
-
-      if (data.id === -1) { 
-        alert("Invalid login");
-        return;
-      }
-
-    
-      localStorage.setItem("user", JSON.stringify(data));
-      setIsAuthenticated(true);
-
-    } catch (err) {
-      console.error(err);
-      alert("Server error. Make sure backend is running.");
+    if (data.error && data.error.length > 0) {
+      alert(data.error);
+      return;
     }
-  };
+
+    localStorage.setItem("token", data.token);
+    setIsAuthenticated(true);
+
+  } catch (err) {
+    console.error(err);
+    alert("Server error. Make sure backend is running.");
+  }
+};
 
   return (
     <div
@@ -146,6 +132,7 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
           src="https://www.svgrepo.com/show/475656/google-color.svg"
           alt="Google"
           style={{ width: "28px", cursor: "pointer" }}
+          onClick={googleLogin}
         />
       </div>
     </div>

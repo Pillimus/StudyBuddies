@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { supabase } from "./supabase";
 
 import Login from "./features/auth/pages/Login";
 import Signup from "./features/auth/pages/SignUp";
@@ -11,7 +12,21 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [page, setPage] = useState<"login" | "signup">("login");
 
- 
+  
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data } = await supabase.auth.getSession();
+
+      if (data.session) {
+        localStorage.setItem("token", data.session.access_token);
+        setIsAuthenticated(true);
+      }
+    };
+
+    checkUser();
+  }, []);
+
+
   if (!isAuthenticated) {
     return page === "login" ? (
       <Login
@@ -26,6 +41,7 @@ function App() {
     );
   }
 
+  
   return (
     <BrowserRouter>
       <Routes>

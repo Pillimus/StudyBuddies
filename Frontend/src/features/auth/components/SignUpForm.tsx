@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-
+import { signup } from "../../../api/signup";
+import { googleLogin } from "../../../api/googleLogin";
 type Props = {
   setPage: (page: "login" | "signup") => void;
   setIsAuthenticated: (val: boolean) => void;
@@ -20,41 +21,17 @@ const handleSubmit = async (e: React.FormEvent) => {
     return;
   }
 
-  try {
-    const res = await fetch("http://localhost:5000/api/signup", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: name,
-        lastName: lastName,
-        email: email,
-        password: password,
-      }),
-    });
+const data = await signup(name, lastName, email, password);
 
-    const text = await res.text();
-    const data = text ? JSON.parse(text) : {};
-
-    if (data.error && data.error.length > 0) {
-      alert(data.error);
-      return;
-    }
-
-    localStorage.setItem("user", JSON.stringify({
-      email: email,
-      firstName: name,
-      lastName: lastName
-    }));
-
-    setIsAuthenticated(true);
-
-  } catch (err) {
-    console.error("REAL ERROR:", err);
-    alert("Server error");
+  if (data.error && data.error.length > 0) {
+    alert(data.error);
+    return;
   }
+
+  localStorage.setItem("token", data.token);
+  setIsAuthenticated(true);
 };
+
   return (
     <div style={{ width: "380px", display: "flex", flexDirection: "column", gap: "18px" }}>
       
@@ -198,6 +175,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           src="https://www.svgrepo.com/show/475656/google-color.svg"
           alt="Google"
           style={{ width: "28px", cursor: "pointer" }}
+          onClick={googleLogin}
         />
       </div>
     </div>
