@@ -8,25 +8,24 @@ type Props = {
 const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
 
  
 const handleLogin = async () => {
   try {
+    setMessage("");
     const res = await fetch("http://localhost:5000/api/login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        email: email,
-        password: password,
-      }),
+      body: JSON.stringify({ email, password }),
     });
 
     const data = await res.json();
 
-    if (data.error && data.error.length > 0) {
-      alert(data.error);
+    if (!res.ok) {
+      setMessage(data.error || "Login failed.");
       return;
     }
 
@@ -35,7 +34,7 @@ const handleLogin = async () => {
 
   } catch (err) {
     console.error(err);
-    alert("Server error. Make sure backend is running.");
+    setMessage("Server error. Make sure backend is running.");
   }
 };
 
@@ -70,7 +69,10 @@ const handleLogin = async () => {
             type="email"
             placeholder="Enter your email address"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setMessage("");
+            }}
             style={{
               background: "transparent",
               border: "none",
@@ -92,7 +94,10 @@ const handleLogin = async () => {
             type="password"
             placeholder="Enter your Password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setMessage("");
+            }}
             style={{
               background: "transparent",
               border: "none",
@@ -122,6 +127,11 @@ const handleLogin = async () => {
       >
         Login
       </button>
+      {message ? (
+        <div style={{ color: "#ff4d4f", fontSize: "13px", marginTop: "-8px" }}>
+          {message}
+        </div>
+      ) : null}
 
       <div style={{ textAlign: "center", fontSize: "13px", color: "#7c7cff" }}>
         or continue with

@@ -41,3 +41,19 @@
 .nav-btn.active {
   background: linear-gradient(135deg, #8C52FF, #7E90E7);
 }
+.logout-btn {
+  margin-top: auto;
+  margin-bottom: 20px;
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  color: white;
+  cursor: pointer;
+  padding: 10px;
+  border-radius: 12px;
+  transition: 0.2s;
+}
+
+.logout-btn:hover {
+    background-color: rgba(126, 144, 231, 0.5);
+}

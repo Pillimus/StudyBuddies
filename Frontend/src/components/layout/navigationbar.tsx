@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "../../supabase";
 import "./Navbar.css";
 import logo from "../../assets/logo.png";
 
-
-type NavItem = "home" | "tasks" | "calendar" | "profile" | "files";   
+type NavItem = "home" | "tasks" | "calendar" | "profile";
 
 const Navbar = () => {
   const [active, setActive] = useState<NavItem>("home");
@@ -25,11 +25,18 @@ const Navbar = () => {
     if (id === "tasks") navigate("/files");
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem("token");
+    window.location.reload();
+  };
+
   return (
     <div className="sidebar">
       <div className="logo">
         <img src={logo} alt="Study Buddy Logo" />
       </div>
+
       <div className="nav-items">
         {navItems.map((item) => (
           <button
@@ -41,6 +48,11 @@ const Navbar = () => {
           </button>
         ))}
       </div>
+
+      {/* LOGOUT BUTTON */}
+      <button className="logout-btn" onClick={handleLogout}>
+        🚪
+      </button>
     </div>
   );
 };

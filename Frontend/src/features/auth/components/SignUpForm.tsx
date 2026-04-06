@@ -3,33 +3,33 @@ import { signup } from "../../../api/signup";
 import { googleLogin } from "../../../api/googleLogin";
 type Props = {
   setPage: (page: "login" | "signup") => void;
-  setIsAuthenticated: (val: boolean) => void;
 };
 
-const SignupForm = ({ setPage, setIsAuthenticated }: Props) => {
+const SignupForm = ({ setPage }: Props) => {
   const [name, setName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [message, setMessage] = useState("");
 
 const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
+  setMessage("");
 
   if (password !== confirmPassword) {
-    alert("Passwords do not match");
+    setMessage("Passwords do not match");
     return;
   }
 
-const data = await signup(name, lastName, email, password);
+  const data = await signup(name, lastName, email, password);
 
   if (data.error && data.error.length > 0) {
-    alert(data.error);
+    setMessage(data.error);
     return;
   }
 
-  localStorage.setItem("token", data.token);
-  setIsAuthenticated(true);
+  setMessage("Signup successful. Please verify your email before logging in.");
 };
 
   return (
@@ -59,7 +59,10 @@ const data = await signup(name, lastName, email, password);
               type="text"
               placeholder="Enter your first name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setMessage("");
+              }}
               style={{
                 background: "transparent",
                 border: "none",
@@ -79,7 +82,10 @@ const data = await signup(name, lastName, email, password);
               type="text"
               placeholder="Enter your last name"
               value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
+              onChange={(e) => {
+                setLastName(e.target.value);
+                setMessage("");
+              }}
               style={{
                 background: "transparent",
                 border: "none",
@@ -99,7 +105,10 @@ const data = await signup(name, lastName, email, password);
               type="email"
               placeholder="Enter your email address"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setMessage("");
+              }}
               style={{
                 background: "transparent",
                 border: "none",
@@ -119,7 +128,10 @@ const data = await signup(name, lastName, email, password);
               type="password"
               placeholder="Enter your password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setMessage("");
+              }}
               style={{
                 background: "transparent",
                 border: "none",
@@ -139,7 +151,10 @@ const data = await signup(name, lastName, email, password);
               type="password"
               placeholder="Confirm your password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                setMessage("");
+              }}
               style={{
                 background: "transparent",
                 border: "none",
@@ -167,6 +182,11 @@ const data = await signup(name, lastName, email, password);
         >
           Sign up
         </button>
+        {message ? (
+          <div style={{ color: "#ff4d4f", fontSize: "13px", marginTop: "12px" }}>
+            {message}
+          </div>
+        ) : null}
       </form>
 
       {/* GOOGLE */}
