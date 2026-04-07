@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { googleLogin } from "../../../api/googleLogin";
 type Props = {
-  setPage: (page: "login" | "signup") => void;
+  setPage: (page: "login" | "signup" | "forgot" | "reset") => void;
   setIsAuthenticated: (val: boolean) => void;
 };
 
@@ -9,6 +9,7 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
  
 const handleLogin = async () => {
@@ -91,7 +92,7 @@ const handleLogin = async () => {
         <div style={{ display: "flex", alignItems: "center", borderBottom: "1px solid #aaa", paddingBottom: "6px", marginTop: "5px" }}>
           <span style={{ marginRight: "8px" }}>🔒</span>
           <input
-            type="password"
+            type={showPassword ? "text" : "password"}
             placeholder="Enter your Password"
             value={password}
             onChange={(e) => {
@@ -107,8 +108,41 @@ const handleLogin = async () => {
               fontSize: "14px",
             }}
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword((prev) => !prev)}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#cfcfff",
+              cursor: "pointer",
+              fontSize: "16px",
+              marginLeft: "8px",
+              padding: 0,
+            }}
+          >
+            {showPassword ? "Hide" : "Show"}
+          </button>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setPage("forgot")}
+        style={{
+          border: "none",
+          background: "transparent",
+          color: "#7c7cff",
+          cursor: "pointer",
+          padding: 0,
+          marginTop: "-8px",
+          textAlign: "left",
+          fontSize: "13px",
+        }}
+      >
+        Forgot password?
+      </button>
 
       {/*LOGIN BUTTON */}
       <button

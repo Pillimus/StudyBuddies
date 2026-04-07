@@ -1,16 +1,16 @@
 import AuthLayout from "../../../layouts/AuthLayout";
-import SignupForm from "../components/SignUpForm";
+import ResetPasswordForm from "../components/ResetPasswordForm";
 
 type Props = {
   setPage: (page: "login" | "signup" | "forgot" | "reset") => void;
 };
 
-const Signup = ({ setPage }: Props) => {
+const ResetPassword = ({ setPage }: Props) => {
   return (
     <AuthLayout>
-      <SignupForm setPage={setPage} />
+      <ResetPasswordForm setPage={setPage} />
     </AuthLayout>
   );
 };
 
-export default Signup;
+export default ResetPassword;

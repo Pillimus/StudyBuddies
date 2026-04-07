@@ -3,7 +3,7 @@ import AuthLayout from "../../../layouts/AuthLayout";
 import LoginForm from "../components/LoginForm";
 
 type Props = {
-  setPage: (page: "login" | "signup") => void;
+  setPage: (page: "login" | "signup" | "forgot" | "reset") => void;
   setIsAuthenticated: (val: boolean) => void;
 };
 

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { signup } from "../../../api/signup";
 import { googleLogin } from "../../../api/googleLogin";
 type Props = {
-  setPage: (page: "login" | "signup") => void;
+  setPage: (page: "login" | "signup" | "forgot" | "reset") => void;
 };
 
 const SignupForm = ({ setPage }: Props) => {
@@ -12,6 +12,8 @@ const SignupForm = ({ setPage }: Props) => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
 const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
@@ -123,9 +125,9 @@ const handleSubmit = async (e: React.FormEvent) => {
         {/* PASSWORD */}
         <div style={{ marginBottom: "15px" }}>
           <label style={{ fontSize: "12px" }}>Password</label>
-          <div style={{ borderBottom: "1px solid #aaa", paddingBottom: "6px" }}>
+          <div style={{ borderBottom: "1px solid #aaa", paddingBottom: "6px", display: "flex", alignItems: "center" }}>
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="Enter your password"
               value={password}
               onChange={(e) => {
@@ -140,15 +142,31 @@ const handleSubmit = async (e: React.FormEvent) => {
                 width: "100%",
               }}
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#cfcfff",
+                cursor: "pointer",
+                fontSize: "16px",
+                marginLeft: "8px",
+                padding: 0,
+              }}
+            >
+              {showPassword ? "Hide" : "Show"}
+            </button>
           </div>
         </div>
 
         {/* CONFIRM PASSWORD */}
         <div style={{ marginBottom: "20px" }}>
           <label style={{ fontSize: "12px" }}>Confirm Password</label>
-          <div style={{ borderBottom: "1px solid #aaa", paddingBottom: "6px" }}>
+          <div style={{ borderBottom: "1px solid #aaa", paddingBottom: "6px", display: "flex", alignItems: "center" }}>
             <input
-              type="password"
+              type={showConfirmPassword ? "text" : "password"}
               placeholder="Confirm your password"
               value={confirmPassword}
               onChange={(e) => {
@@ -163,6 +181,22 @@ const handleSubmit = async (e: React.FormEvent) => {
                 width: "100%",
               }}
             />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword((prev) => !prev)}
+              aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#cfcfff",
+                cursor: "pointer",
+                fontSize: "16px",
+                marginLeft: "8px",
+                padding: 0,
+              }}
+            >
+              {showConfirmPassword ? "Hide" : "Show"}
+            </button>
           </div>
         </div>
 
