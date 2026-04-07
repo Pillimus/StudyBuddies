@@ -19,6 +19,11 @@ const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   setMessage("");
 
+  if (!name || !lastName || !email || !password || !confirmPassword) {
+    setMessage("Please fill in all fields");
+    return;
+  }
+
   if (password !== confirmPassword) {
     setMessage("Passwords do not match");
     return;
@@ -32,6 +37,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   }
 
   setMessage("Signup successful. Please verify your email before logging in.");
+  setTimeout(() => setPage("login"), 1500);
 };
 
   return (

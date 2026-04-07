@@ -1,5 +1,6 @@
 const express = require("express");
 const app = express();
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
@@ -38,6 +39,8 @@ const uploadsDir = path.join(__dirname, "uploaded_file_list");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
+const frontendUrl = "http://localhost:5173";
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -179,7 +182,13 @@ app.post("/api/login", async (req, res) => {
       { expiresIn: "1h" }
     );
 
-    res.status(200).json({ token });
+    res.status(200).json({
+      token,
+      id: user.UserID,
+      firstName: user.FirstName || "",
+      lastName: user.LastName || "",
+      email: user.Email,
+    });
 
   } catch (err) {
     res.status(500).json({ error: "Server error" });
@@ -187,7 +196,7 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.post("/api/signup", async (req, res, next) => {
-  const { name, email, password } = req.body;
+  const { name, lastName, email, password } = req.body;
 
   let error = "";
 
@@ -210,7 +219,7 @@ app.post("/api/signup", async (req, res, next) => {
         Email: email,
         Password: hashedPassword,
         FirstName: name,
-        LastName: "",
+        LastName: lastName || "",
         verified: false,
         verifyToken: verifyToken,
       };
@@ -244,7 +253,7 @@ app.get("/api/verify/:token", async (req, res) => {
   const user = await db.collection("Accounts").findOne({ verifyToken: token });
 
   if (!user) {
-    return res.send("Invalid token");
+    return res.redirect(`${frontendUrl}/?verified=invalid`);
   }
 
   await db.collection("Accounts").updateOne(
@@ -252,7 +261,101 @@ app.get("/api/verify/:token", async (req, res) => {
     { $set: { verified: true }, $unset: { verifyToken: "" } }
   );
 
-  res.send("Email verified! You can now login.");
+  res.redirect(`${frontendUrl}/?verified=success`);
+});
+
+app.post("/api/forgot-password", async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: "Email is required" });
+  }
+
+  try {
+    const db = client.db("Users");
+    const user = await db.collection("Accounts").findOne({ Email: email });
+
+    if (user) {
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const resetTokenHash = crypto
+        .createHash("sha256")
+        .update(resetToken)
+        .digest("hex");
+      const resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000);
+      const resetLink = `${frontendUrl}/reset-password?resetToken=${resetToken}`;
+
+      await db.collection("Accounts").updateOne(
+        { _id: user._id },
+        {
+          $set: {
+            resetTokenHash,
+            resetTokenExpires,
+          },
+        }
+      );
+
+      await transporter.sendMail({
+        from: "sejalmogalgiddi29@gmail.com",
+        to: email,
+        subject: "Reset your StudyBuddies password",
+        html: `
+          <h2>Password reset request</h2>
+          <p>Click below to reset your password. This link expires in 1 hour.</p>
+          <a href="${resetLink}">Reset Password</a>
+        `,
+      });
+    }
+
+    return res.status(200).json({
+      message:
+        "If an account with that email exists, a password reset link has been sent.",
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to process password reset request." });
+  }
+});
+
+app.post("/api/reset-password", async (req, res) => {
+  const { token, password } = req.body;
+
+  if (!token || !password) {
+    return res.status(400).json({ error: "Token and new password are required" });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters long" });
+  }
+
+  try {
+    const db = client.db("Users");
+    const resetTokenHash = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const user = await db.collection("Accounts").findOne({
+      resetTokenHash,
+      resetTokenExpires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: "Reset link is invalid or has expired" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await db.collection("Accounts").updateOne(
+      { _id: user._id },
+      {
+        $set: { Password: hashedPassword },
+        $unset: { resetTokenHash: "", resetTokenExpires: "" },
+      }
+    );
+
+    return res.status(200).json({ message: "Password reset successful. Please sign in." });
+  } catch (err) {
+    return res.status(500).json({ error: "Unable to reset password." });
+  }
 });
 
 app.post("/api/searchTasks", async (req, res, next) => {

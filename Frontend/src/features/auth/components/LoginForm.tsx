@@ -1,4 +1,7 @@
 import React, { useState } from "react";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { googleLogin } from "../../../api/googleLogin";
 
 type Props = {
   setPage: (page: "login" | "signup" | "forgot" | "reset") => void;
@@ -8,9 +11,37 @@ type Props = {
 const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const verified = params.get("verified");
+
+    if (verified === "success") {
+      setMessage("Email verified. You can sign in now.");
+      window.history.replaceState({}, "", "/");
+      return;
+    }
+
+    if (verified === "invalid") {
+      setError("Verification link is invalid or expired.");
+      window.history.replaceState({}, "", "/");
+    }
+  }, []);
 
  
   const handleLogin = async () => {
+    setError("");
+    setMessage("");
+
+    if (!email || !password) {
+      setError("Please fill in all fields.");
+      return;
+    }
+
     try {
       const res = await fetch("http://localhost:5000/api/login", {
         method: "POST",
@@ -29,27 +60,28 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
 
   
       if (!res.ok) {
-        alert("Server error");
+        setError(data.error || "Unable to sign in.");
         return;
       }
 
       if (data.error && data.error.length > 0) {
-        alert(data.error);
+        setError(data.error);
         return;
       }
 
       if (data.id === -1) { 
-        alert("Invalid login");
+        setError("Invalid login");
         return;
       }
 
     
       localStorage.setItem("user", JSON.stringify(data));
       setIsAuthenticated(true);
+      navigate("/dashboard");
 
     } catch (err) {
       console.error(err);
-      alert("Server error. Make sure backend is running.");
+      setError("Server error. Make sure backend is running.");
     }
   };
 
@@ -72,7 +104,10 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
             type="email"
             placeholder="Enter your email address"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setError("");
+            }}
             style={{
               background: "transparent",
               border: "none",
@@ -90,10 +125,13 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
         <div style={{ display: "flex", alignItems: "center", borderBottom: "1px solid #aaa", paddingBottom: "6px", marginTop: "5px" }}>
           <span style={{ marginRight: "8px" }}>🔒</span>
           <input
-            type="password"
+            type={showPassword ? "text" : "password"}
             placeholder="Enter your Password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setError("");
+            }}
             style={{
               background: "transparent",
               border: "none",
@@ -140,6 +178,7 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
       </button>
 
       {error && <div style={{ color: "#e05c7a", fontSize: "0.85rem" }}>{error}</div>}
+      {message && <div style={{ color: "#7CFC98", fontSize: "0.85rem" }}>{message}</div>}
 
       <button
         type="button"
@@ -158,6 +197,7 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
           src="https://www.svgrepo.com/show/475656/google-color.svg"
           alt="Google"
           style={{ width: "28px", cursor: "pointer" }}
+          onClick={googleLogin}
         />
       </div>
     </div>

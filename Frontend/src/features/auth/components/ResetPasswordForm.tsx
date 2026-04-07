@@ -63,7 +63,7 @@ const ResetPasswordForm = ({ setPage }: Props) => {
       }
 
       setMessage(data.message || "Password reset successful. Please sign in.");
-      window.history.replaceState({}, "", window.location.pathname);
+      window.history.replaceState({}, "", "/reset-password");
       setPassword("");
       setConfirmPassword("");
       setTimeout(() => setPage("login"), 1500);
@@ -193,7 +193,7 @@ const ResetPasswordForm = ({ setPage }: Props) => {
       <button
         type="button"
         onClick={() => {
-          window.history.replaceState({}, "", window.location.pathname);
+          window.history.replaceState({}, "", "/reset-password");
           setPage("login");
         }}
         style={{

@@ -1,11 +1,29 @@
+import { useNavigate } from "react-router-dom";
 import AuthLayout from "../../../layouts/AuthLayout";
 import ResetPasswordForm from "../components/ResetPasswordForm";
 
-type Props = {
-  setPage: (page: "login" | "signup" | "forgot" | "reset") => void;
-};
+const ResetPassword = () => {
+  const navigate = useNavigate();
 
-const ResetPassword = ({ setPage }: Props) => {
+  const setPage = (page: "login" | "signup" | "forgot" | "reset") => {
+    if (page === "signup") {
+      navigate("/signup");
+      return;
+    }
+
+    if (page === "forgot") {
+      navigate("/forgot-password");
+      return;
+    }
+
+    if (page === "reset") {
+      navigate("/reset-password");
+      return;
+    }
+
+    navigate("/");
+  };
+
   return (
     <AuthLayout>
       <ResetPasswordForm setPage={setPage} />

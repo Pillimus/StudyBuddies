@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../../assets/logo.png';
+import { supabase } from '../../supabase';
 import './Sidebar.css';
 
 // Shared gradient def — rendered once, referenced everywhere
@@ -102,9 +103,11 @@ function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  function doLogout() {
+  async function doLogout() {
+    await supabase.auth.signOut();
     localStorage.removeItem('user');
-    navigate('/');
+    localStorage.removeItem('token');
+    window.location.assign('/');
   }
 
   return (
