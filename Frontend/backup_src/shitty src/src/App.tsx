@@ -1,30 +1,27 @@
-import { useState } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { EventProvider } from './context/EventContext';
+import { UserProvider  } from './context/UserContext';
+import Login    from './features/auth/pages/Login';
+import Signup   from './features/auth/pages/SignUp';
+import Sidebar  from './components/layout/Sidebar';
+import Dashboard    from './features/dashboard/pages/Dashboard';
+import CalendarPage from './features/Calendar/CalendarPage';
+import GroupsPage   from './features/groups/GroupsPage';
+import ChatsPage    from './features/chats/ChatsPage';
+import FilesPage    from './features/files/FilesPage';
 
-import Login from "./features/auth/pages/Login";
-import Signup from "./features/auth/pages/SignUp";
-import Files from "./features/File/File"; 
-import Dashboard from "./features/dashboard/pages/Dashboard";
-import Events from "./features/Calendar/event";
+function AppShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="app-shell">
+      <Sidebar />
+      <div className="page-area">{children}</div>
+    </div>
+  );
+}
 
-function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [page, setPage] = useState<"login" | "signup">("login");
-
- 
-  if (!isAuthenticated) {
-    return page === "login" ? (
-      <Login
-        setPage={setPage}
-        setIsAuthenticated={setIsAuthenticated}
-      />
-    ) : (
-      <Signup
-        setPage={setPage}
-        setIsAuthenticated={setIsAuthenticated}
-      />
-    );
-  }
+export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('user'));
 
   return (
     <BrowserRouter>
@@ -45,5 +42,3 @@ function App() {
     </BrowserRouter>
   );
 }
-
-export default App;
