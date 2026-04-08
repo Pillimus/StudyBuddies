@@ -1,5 +1,21 @@
 import { useRef } from 'react';
 
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      reject(new Error('Image must be smaller than 5 MB.'));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Unable to read image.'));
+    reader.readAsDataURL(file);
+  });
+}
+
 interface AvatarProps {
   letter:    string;
   color:     string;
@@ -58,9 +74,9 @@ export function useImageUpload(onFile:(url:string)=>void) {
     return (
       <input ref={ref} type="file" accept="image/png,image/jpeg"
         style={{display:'none'}}
-        onChange={e=>{
+        onChange={async e=>{
           const f=e.target.files?.[0];
-          if(f) onFile(URL.createObjectURL(f));
+          if(f) onFile(await fileToDataUrl(f));
           e.target.value='';
         }}
       />
@@ -76,10 +92,11 @@ interface UploadZoneProps {
   letter?: string;
   size?: number;
   onFile: (url:string) => void;
+  onError?: (message: string) => void;
   label?: string;
 }
 
-export function AvatarUploadZone({currentUrl,currentColor='#5b8dee',letter='?',size=80,onFile,label}:UploadZoneProps) {
+export function AvatarUploadZone({currentUrl,currentColor='#5b8dee',letter='?',size=80,onFile,onError,label}:UploadZoneProps) {
   const ref = useRef<HTMLInputElement>(null);
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'14px'}}>
@@ -120,7 +137,17 @@ export function AvatarUploadZone({currentUrl,currentColor='#5b8dee',letter='?',s
       </div>
 
       <input ref={ref} type="file" accept="image/png,image/jpeg" style={{display:'none'}}
-        onChange={e=>{const f=e.target.files?.[0];if(f){onFile(URL.createObjectURL(f));}e.target.value='';}}
+        onChange={async e=>{
+          const f=e.target.files?.[0];
+          if (f) {
+            try {
+              onFile(await fileToDataUrl(f));
+            } catch (error) {
+              onError?.(error instanceof Error ? error.message : 'Unable to upload image.');
+            }
+          }
+          e.target.value='';
+        }}
       />
     </div>
   );

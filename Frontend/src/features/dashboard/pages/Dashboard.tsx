@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BellIcon, CalendarSmIcon } from '../../../components/layout/Sidebar';
+import { useGroups } from '../../../context/GroupsContext';
 import { useEvents, TYPE_COLOR, TYPE_ICON } from '../../../context/EventContext';
 import { useUser } from '../../../context/UserContext';
 import { Avatar } from '../../../components/Avatar';
@@ -25,6 +26,7 @@ function dayLabel(dateStr: string): string {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { events, markDone } = useEvents();
+  const { groups } = useGroups();
   const { profile } = useUser();
 
   const [selectedEvent, setSelectedEvent] = useState<typeof events[0] | null>(null);
@@ -111,7 +113,7 @@ export default function Dashboard() {
         <div className="stats-row">
           {[
             { num: events.length,    label: 'Upcoming Events'  },
-            { num: 4,                label: 'Study Groups'      },
+            { num: groups.length,    label: 'Study Groups'      },
             { num: MOCK_NOTIFICATIONS.filter(n => n.type === 'message').length, label: 'Unread Messages' },
             { num: todoEvents.length, label: 'Due This Week'   },
           ].map((s, i) => (

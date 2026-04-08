@@ -1,6 +1,8 @@
+import { buildApiUrl } from "./config";
+
 export const signup = async (name: string, lastName: string, email: string, password: string) => {
   try {
-    const res = await fetch("http://localhost:5000/api/signup", {
+    const res = await fetch(buildApiUrl("/api/signup"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

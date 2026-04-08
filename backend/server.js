@@ -8,9 +8,9 @@ const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
 const MongoClient = require("mongodb").MongoClient;
+const config = require("./config");
 
-const url =
-  "mongodb+srv://RWUser:h6SmYQJKhA539tbG@mernproject.jqcxaqy.mongodb.net/?appName=MernProject";
+const url = config.mongodbUri;
 
 const client = new MongoClient(url);
 
@@ -40,10 +40,12 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-const frontendUrl = "http://localhost:5173";
+const frontendUrl = config.frontendUrl;
+const apiBaseUrl = config.apiBaseUrl;
+const JWT_SECRET = config.jwtSecret;
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 client.connect()
   .then(() => console.log("MongoDB connected"))
@@ -55,10 +57,10 @@ mongoose
   .catch((err) => console.error(err));
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  service: config.emailService,
   auth: {
-    user: "sejalmogalgiddi29@gmail.com",
-    pass: "dedh ezoa denp wiwn",
+    user: config.emailUser,
+    pass: config.emailPass,
   },
 });
 
@@ -66,6 +68,201 @@ var taskList = [];
 var cEventList = [];
 var documentsList = [];
 var groupList = [];
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function escapeRegex(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function buildEmailQuery(email) {
+  const normalizedEmail = normalizeEmail(email);
+  return {
+    Email: {
+      $regex: `^${escapeRegex(normalizedEmail)}$`,
+      $options: "i",
+    },
+  };
+}
+
+function buildDisplayName(account) {
+  const customDisplayName = String(account.DisplayName || "").trim();
+  if (customDisplayName) {
+    return customDisplayName;
+  }
+
+  const fullName = [account.FirstName, account.LastName].filter(Boolean).join(" ").trim();
+  return fullName || normalizeEmail(account.Email).split("@")[0] || "User";
+}
+
+function buildMemberFromAccount(account, overrides = {}) {
+  return {
+    userId: account.UserID,
+    username: buildDisplayName(account),
+    displayName: buildDisplayName(account),
+    email: normalizeEmail(account.Email),
+    isCreator: Boolean(overrides.isCreator),
+    color: overrides.color || account.AvatarColor || "#5b8dee",
+    avatarUrl: overrides.avatarUrl || account.AvatarUrl || undefined,
+  };
+}
+
+function buildUserProfile(account) {
+  return {
+    displayName: buildDisplayName(account),
+    avatarUrl: account.AvatarUrl || null,
+    avatarColor: account.AvatarColor || "#5b8dee",
+  };
+}
+
+function buildUserResponse(account, extra = {}) {
+  return {
+    id: account.UserID,
+    email: account.Email,
+    firstName: account.FirstName || "",
+    lastName: account.LastName || "",
+    ...buildUserProfile(account),
+    ...extra,
+  };
+}
+
+async function findAccountByIdentity(db, { userId, email }) {
+  const clauses = [];
+
+  if (userId !== undefined && userId !== null && userId !== "") {
+    clauses.push({ UserID: userId }, { UserID: Number(userId) });
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  if (normalizedEmail) {
+    clauses.push(buildEmailQuery(normalizedEmail));
+  }
+
+  if (clauses.length === 0) {
+    return null;
+  }
+
+  return db.collection("Accounts").findOne({ $or: clauses });
+}
+
+async function syncProfileInGroups(db, account) {
+  const normalizedEmail = normalizeEmail(account.Email);
+  const nextDisplayName = buildDisplayName(account);
+
+  await db.collection("Groups").updateMany(
+    {
+      Members: {
+        $elemMatch: {
+          $or: [
+            { userId: account.UserID },
+            { userId: Number(account.UserID) },
+            { email: normalizedEmail },
+          ],
+        },
+      },
+    },
+    {
+      $set: {
+        "Members.$[member].username": nextDisplayName,
+        "Members.$[member].displayName": nextDisplayName,
+        "Members.$[member].avatarUrl": account.AvatarUrl || undefined,
+        "Members.$[member].color": account.AvatarColor || "#5b8dee",
+      },
+    },
+    {
+      arrayFilters: [
+        {
+          $or: [
+            { "member.userId": account.UserID },
+            { "member.userId": Number(account.UserID) },
+            { "member.email": normalizedEmail },
+          ],
+        },
+      ],
+    },
+  );
+}
+
+async function findAccountsByEmails(db, emails) {
+  const normalizedEmails = [...new Set((emails || []).map(normalizeEmail).filter(Boolean))];
+  if (normalizedEmails.length === 0) {
+    return [];
+  }
+
+  return db.collection("Accounts").find({
+    $or: normalizedEmails.map(email => buildEmailQuery(email)),
+  }).toArray();
+}
+
+function buildGroupLookup(userId, email) {
+  const clauses = [];
+
+  if (userId !== undefined && userId !== null && userId !== "") {
+    clauses.push({ "Members.userId": userId });
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  if (normalizedEmail) {
+    clauses.push({ "Members.email": normalizedEmail });
+  }
+
+  return clauses.length > 0 ? { $or: clauses } : null;
+}
+
+app.post("/api/sync-google-user", async (req, res) => {
+  const { email, firstName, lastName, supabaseId } = req.body;
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!normalizedEmail || !supabaseId) {
+    return res.status(400).json({ error: "Email and Supabase user id are required." });
+  }
+
+  try {
+    const db = client.db("Users");
+    const existingUser = await db.collection("Accounts").findOne(buildEmailQuery(normalizedEmail));
+
+    if (existingUser) {
+      await db.collection("Accounts").updateOne(
+        { _id: existingUser._id },
+        {
+          $set: {
+            Email: normalizedEmail,
+            FirstName: firstName || existingUser.FirstName || "",
+            LastName: lastName || existingUser.LastName || "",
+            verified: true,
+            AuthProvider: "google",
+            SupabaseUserID: supabaseId,
+          },
+        },
+      );
+
+      const updatedUser = await db.collection("Accounts").findOne({ _id: existingUser._id });
+      return res.status(200).json(buildUserResponse(updatedUser));
+    }
+
+    const newUser = {
+      UserID: supabaseId,
+      SupabaseUserID: supabaseId,
+      Email: normalizedEmail,
+      Password: null,
+      FirstName: firstName || "",
+      LastName: lastName || "",
+      DisplayName: "",
+      AvatarUrl: "",
+      AvatarColor: "#5b8dee",
+      verified: true,
+      AuthProvider: "google",
+    };
+
+    await db.collection("Accounts").insertOne(newUser);
+
+    return res.status(200).json(buildUserResponse(newUser));
+  } catch (error) {
+    return res.status(500).json({ error: "Unable to sync Google user." });
+  }
+});
 
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -75,8 +272,11 @@ app.use((req, res, next) => {
   );
   res.setHeader(
     "Access-Control-Allow-Methods",
-    "GET, POST, PATCH, DELETE, OPTIONS",
+    "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   );
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
   next();
 });
 
@@ -158,9 +358,10 @@ app.post("/api/updateGroup", async (req, res, next) => {
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
     const db = client.db("Users");
-    const user = await db.collection("Accounts").findOne({ Email: email });
+    const user = await db.collection("Accounts").findOne(buildEmailQuery(normalizedEmail));
 
     if (!user) {
       return res.status(400).json({ error: "User not found" });
@@ -178,17 +379,11 @@ app.post("/api/login", async (req, res) => {
 
     const token = jwt.sign(
       { userId: user.UserID },
-      "secretkey",
+      JWT_SECRET,
       { expiresIn: "1h" }
     );
 
-    res.status(200).json({
-      token,
-      id: user.UserID,
-      firstName: user.FirstName || "",
-      lastName: user.LastName || "",
-      email: user.Email,
-    });
+    res.status(200).json(buildUserResponse(user, { token }));
 
   } catch (err) {
     res.status(500).json({ error: "Server error" });
@@ -197,6 +392,7 @@ app.post("/api/login", async (req, res) => {
 
 app.post("/api/signup", async (req, res, next) => {
   const { name, lastName, email, password } = req.body;
+  const normalizedEmail = normalizeEmail(email);
 
   let error = "";
 
@@ -205,7 +401,7 @@ app.post("/api/signup", async (req, res, next) => {
 
     const existing = await db
       .collection("Accounts")
-      .find({ Email: email })
+      .find(buildEmailQuery(normalizedEmail))
       .toArray();
 
     if (existing.length > 0) {
@@ -216,21 +412,24 @@ app.post("/api/signup", async (req, res, next) => {
 
       const newUser = {
         UserID: Math.floor(Math.random() * 1000000),
-        Email: email,
+        Email: normalizedEmail,
         Password: hashedPassword,
         FirstName: name,
         LastName: lastName || "",
+        DisplayName: "",
+        AvatarUrl: "",
+        AvatarColor: "#5b8dee",
         verified: false,
         verifyToken: verifyToken,
       };
 
       await db.collection("Accounts").insertOne(newUser);
 
-      const verifyLink = `http://localhost:5000/api/verify/${verifyToken}`;
+      const verifyLink = `${apiBaseUrl}/api/verify/${verifyToken}`;
 
       await transporter.sendMail({
-        from: "sejalmogalgiddi29@gmail.com",
-        to: email,
+        from: config.emailFrom,
+        to: normalizedEmail,
         subject: "Verify your account",
         html: `
           <h2>Welcome to StudyBuddies</h2>
@@ -264,16 +463,69 @@ app.get("/api/verify/:token", async (req, res) => {
   res.redirect(`${frontendUrl}/?verified=success`);
 });
 
+app.get("/api/profile", async (req, res) => {
+  const { userId, email } = req.query;
+
+  try {
+    const db = client.db("Users");
+    const user = await findAccountByIdentity(db, { userId, email });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    return res.status(200).json(buildUserResponse(user));
+  } catch (error) {
+    return res.status(500).json({ error: "Unable to load profile." });
+  }
+});
+
+app.put("/api/profile", async (req, res) => {
+  const { userId, email, displayName, avatarUrl, avatarColor } = req.body;
+
+  try {
+    const db = client.db("Users");
+    const user = await findAccountByIdentity(db, { userId, email });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const nextDisplayName = String(displayName || "").trim();
+    const nextAvatarUrl = typeof avatarUrl === "string" ? avatarUrl.trim() : "";
+    const nextAvatarColor = String(avatarColor || user.AvatarColor || "#5b8dee").trim() || "#5b8dee";
+
+    await db.collection("Accounts").updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          DisplayName: nextDisplayName,
+          AvatarUrl: nextAvatarUrl,
+          AvatarColor: nextAvatarColor,
+        },
+      },
+    );
+
+    const updatedUser = await db.collection("Accounts").findOne({ _id: user._id });
+    await syncProfileInGroups(db, updatedUser);
+
+    return res.status(200).json(buildUserResponse(updatedUser));
+  } catch (error) {
+    return res.status(500).json({ error: "Unable to update profile." });
+  }
+});
+
 app.post("/api/forgot-password", async (req, res) => {
   const { email } = req.body;
+  const normalizedEmail = normalizeEmail(email);
 
-  if (!email) {
+  if (!normalizedEmail) {
     return res.status(400).json({ error: "Email is required" });
   }
 
   try {
     const db = client.db("Users");
-    const user = await db.collection("Accounts").findOne({ Email: email });
+    const user = await db.collection("Accounts").findOne(buildEmailQuery(normalizedEmail));
 
     if (user) {
       const resetToken = crypto.randomBytes(32).toString("hex");
@@ -295,8 +547,8 @@ app.post("/api/forgot-password", async (req, res) => {
       );
 
       await transporter.sendMail({
-        from: "sejalmogalgiddi29@gmail.com",
-        to: email,
+        from: config.emailFrom,
+        to: normalizedEmail,
         subject: "Reset your StudyBuddies password",
         html: `
           <h2>Password reset request</h2>
@@ -381,6 +633,239 @@ app.post("/api/searchTasks", async (req, res, next) => {
   res.status(200).json(ret);
 });
 
+app.get("/api/groups", async (req, res) => {
+  const { userId, email } = req.query;
+
+  try {
+    const db = client.db("Users");
+    const lookup = buildGroupLookup(userId ? Number(userId) || userId : "", email);
+
+    if (!lookup) {
+      return res.status(400).json({ error: "User is required." });
+    }
+
+    const groups = await db.collection("Groups").find(lookup).sort({ CreatedAt: -1 }).toArray();
+    return res.status(200).json({ groups });
+  } catch (error) {
+    return res.status(500).json({ error: "Unable to load groups." });
+  }
+});
+
+app.post("/api/groups", async (req, res) => {
+  const { userId, email, name, color, avatarUrl, memberEmails } = req.body;
+
+  if (!userId || !name?.trim()) {
+    return res.status(400).json({ error: "Group name and user are required." });
+  }
+
+  try {
+    const db = client.db("Users");
+    const creator = await db.collection("Accounts").findOne({
+      $or: [{ UserID: userId }, { UserID: Number(userId) }, buildEmailQuery(email)],
+    });
+
+    if (!creator) {
+      return res.status(404).json({ error: "Creator account not found." });
+    }
+
+    const requestedEmails = [...new Set((memberEmails || []).map(normalizeEmail).filter(Boolean))];
+    const accounts = await findAccountsByEmails(db, requestedEmails);
+    const accountByEmail = new Map(accounts.map(account => [normalizeEmail(account.Email), account]));
+    const invalidEmails = requestedEmails.filter(memberEmail => !accountByEmail.has(memberEmail));
+
+    if (invalidEmails.length > 0) {
+      return res.status(400).json({ error: `No account found for: ${invalidEmails.join(", ")}` });
+    }
+
+    const creatorMember = buildMemberFromAccount(creator, { isCreator: true, color: "#5b8dee" });
+    const members = [creatorMember];
+
+    for (const memberEmail of requestedEmails) {
+      const account = accountByEmail.get(memberEmail);
+      if (!account || account.UserID === creator.UserID) continue;
+
+      members.push(
+        buildMemberFromAccount(account, {
+          color: "#3a7bd5",
+        }),
+      );
+    }
+
+    const group = {
+      GroupID: Date.now(),
+      Name: name.trim(),
+      CreatedByUserId: creator.UserID,
+      Color: color || "#7c5cfc",
+      AvatarUrl: avatarUrl || undefined,
+      Members: members,
+      Events: [],
+      CreatedAt: new Date(),
+    };
+
+    await db.collection("Groups").insertOne(group);
+    return res.status(201).json({ group });
+  } catch (error) {
+    return res.status(500).json({ error: "Unable to create group." });
+  }
+});
+
+app.patch("/api/groups/:groupId/members", async (req, res) => {
+  const groupId = Number(req.params.groupId);
+  const { userId, memberEmails } = req.body;
+
+  if (!groupId || !userId) {
+    return res.status(400).json({ error: "Group and user are required." });
+  }
+
+  try {
+    const db = client.db("Users");
+    const group = await db.collection("Groups").findOne({ GroupID: groupId });
+
+    if (!group) {
+      return res.status(404).json({ error: "Group not found." });
+    }
+
+    if (String(group.CreatedByUserId) !== String(userId)) {
+      return res.status(403).json({ error: "Only the group creator can add members." });
+    }
+
+    const requestedEmails = [...new Set((memberEmails || []).map(normalizeEmail).filter(Boolean))];
+    if (requestedEmails.length === 0) {
+      return res.status(400).json({ error: "At least one email is required." });
+    }
+
+    const existingEmails = new Set((group.Members || []).map(member => normalizeEmail(member.email)));
+    const duplicateEmails = requestedEmails.filter(memberEmail => existingEmails.has(memberEmail));
+    const accounts = await findAccountsByEmails(db, requestedEmails);
+    const accountByEmail = new Map(accounts.map(account => [normalizeEmail(account.Email), account]));
+    const invalidEmails = requestedEmails.filter(memberEmail => !accountByEmail.has(memberEmail));
+
+    if (invalidEmails.length > 0 || duplicateEmails.length > 0) {
+      const errors = [];
+      if (invalidEmails.length > 0) errors.push(`No account found for: ${invalidEmails.join(", ")}`);
+      if (duplicateEmails.length > 0) errors.push(`Already in the group: ${duplicateEmails.join(", ")}`);
+      return res.status(400).json({ error: errors.join(" ") });
+    }
+
+    const newMembers = requestedEmails.map(memberEmail =>
+      buildMemberFromAccount(accountByEmail.get(memberEmail), { color: "#3a7bd5" }),
+    );
+
+    const updatedMembers = [...group.Members, ...newMembers];
+    await db.collection("Groups").updateOne(
+      { GroupID: groupId },
+      { $set: { Members: updatedMembers } },
+    );
+
+    return res.status(200).json({ group: { ...group, Members: updatedMembers } });
+  } catch (error) {
+    return res.status(500).json({ error: "Unable to add members." });
+  }
+});
+
+app.delete("/api/groups/:groupId/members", async (req, res) => {
+  const groupId = Number(req.params.groupId);
+  const { userId, memberEmail } = req.body;
+
+  if (!groupId || !userId || !memberEmail) {
+    return res.status(400).json({ error: "Group, user, and member email are required." });
+  }
+
+  try {
+    const db = client.db("Users");
+    const group = await db.collection("Groups").findOne({ GroupID: groupId });
+
+    if (!group) {
+      return res.status(404).json({ error: "Group not found." });
+    }
+
+    if (String(group.CreatedByUserId) !== String(userId)) {
+      return res.status(403).json({ error: "Only the group creator can remove members." });
+    }
+
+    const normalizedMemberEmail = normalizeEmail(memberEmail);
+    const memberToRemove = (group.Members || []).find(member => normalizeEmail(member.email) === normalizedMemberEmail);
+
+    if (!memberToRemove) {
+      return res.status(404).json({ error: "Member not found in this group." });
+    }
+
+    if (memberToRemove.isCreator) {
+      return res.status(400).json({ error: "The group creator cannot be removed." });
+    }
+
+    const updatedMembers = (group.Members || []).filter(member => normalizeEmail(member.email) !== normalizedMemberEmail);
+    await db.collection("Groups").updateOne(
+      { GroupID: groupId },
+      { $set: { Members: updatedMembers } },
+    );
+
+    return res.status(200).json({ group: { ...group, Members: updatedMembers } });
+  } catch (error) {
+    return res.status(500).json({ error: "Unable to remove member." });
+  }
+});
+
+app.patch("/api/groups/:groupId/leave", async (req, res) => {
+  const groupId = Number(req.params.groupId);
+  const { userId, email } = req.body;
+
+  if (!groupId || (!userId && !email)) {
+    return res.status(400).json({ error: "Group and user are required." });
+  }
+
+  try {
+    const db = client.db("Users");
+    const group = await db.collection("Groups").findOne({ GroupID: groupId });
+
+    if (!group) {
+      return res.status(404).json({ error: "Group not found." });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const remainingMembers = (group.Members || []).filter(
+      member =>
+        String(member.userId) !== String(userId) &&
+        normalizeEmail(member.email) !== normalizedEmail,
+    );
+
+    if (remainingMembers.length === group.Members.length) {
+      return res.status(404).json({ error: "You are not a member of this group." });
+    }
+
+    if (remainingMembers.length === 0) {
+      await db.collection("Groups").deleteOne({ GroupID: groupId });
+      return res.status(200).json({ success: true });
+    }
+
+    let createdByUserId = group.CreatedByUserId;
+    const creatorLeft = String(group.CreatedByUserId) === String(userId) ||
+      normalizeEmail((group.Members || []).find(member => member.isCreator)?.email) === normalizedEmail;
+
+    const normalizedMembers = remainingMembers.map((member, index) => {
+      if (!creatorLeft) {
+        return member;
+      }
+
+      if (index === 0) {
+        createdByUserId = member.userId;
+        return { ...member, isCreator: true };
+      }
+
+      return { ...member, isCreator: false };
+    });
+
+    await db.collection("Groups").updateOne(
+      { GroupID: groupId },
+      { $set: { Members: normalizedMembers, CreatedByUserId: createdByUserId } },
+    );
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: "Unable to leave group." });
+  }
+});
+
 app.get("/api/ping", (req, res, next) => {
   res.status(200).json({ message: "Hello World" });
 });
@@ -396,10 +881,12 @@ if (eventRoutes) {
 app.get("/test-token", (req, res) => {
   const token = jwt.sign(
     { userId: "655b4e5f1c9d440000d1a3f7" },
-    "secretKey",
+    JWT_SECRET,
     { expiresIn: "1h" }
   );
   res.json({ token });
 });
 
-app.listen(5000);
+app.listen(config.port, () => {
+  console.log(`Server listening on port ${config.port}`);
+});

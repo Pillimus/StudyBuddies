@@ -3,8 +3,10 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import Sidebar from "./components/layout/Sidebar";
+import { syncGoogleUser } from "./api/syncGoogleUser";
 import { supabase } from "./supabase";
 import { EventProvider } from "./context/EventContext";
+import { GroupsProvider } from "./context/GroupsContext";
 import { UserProvider } from "./context/UserContext";
 import CalendarPage from "./features/Calendar/CalendarPage";
 import ForgotPassword from "./features/auth/pages/ForgotPassword";
@@ -32,6 +34,40 @@ function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
+    const persistGoogleUser = async (user: {
+      id: string;
+      email?: string;
+      user_metadata?: { full_name?: string };
+    }) => {
+      const fullName = user.user_metadata?.full_name ?? "";
+      const [firstName = user.email?.split("@")[0] ?? "User", ...rest] = fullName.split(" ");
+      const lastName = rest.join(" ");
+
+      try {
+        const syncedUser = await syncGoogleUser({
+          email: user.email ?? "",
+          firstName,
+          lastName,
+          supabaseId: user.id,
+        });
+
+        localStorage.setItem(
+          "user",
+          JSON.stringify(syncedUser),
+        );
+      } catch {
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            id: user.id,
+            firstName,
+            lastName,
+            email: user.email ?? "",
+          }),
+        );
+      }
+    };
+
     const syncGoogleSession = async () => {
       const {
         data: { session },
@@ -43,18 +79,7 @@ function App() {
       }
 
       const user = session.user;
-      const fullName = user.user_metadata?.full_name ?? "";
-      const [firstName = user.email?.split("@")[0] ?? "User", ...rest] = fullName.split(" ");
-
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          id: user.id,
-          firstName,
-          lastName: rest.join(" "),
-          email: user.email ?? "",
-        }),
-      );
+      await persistGoogleUser(user);
       setIsAuthenticated(true);
       setIsAuthReady(true);
     };
@@ -72,20 +97,10 @@ function App() {
       }
 
       const user = session.user;
-      const fullName = user.user_metadata?.full_name ?? "";
-      const [firstName = user.email?.split("@")[0] ?? "User", ...rest] = fullName.split(" ");
-
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          id: user.id,
-          firstName,
-          lastName: rest.join(" "),
-          email: user.email ?? "",
-        }),
-      );
-      setIsAuthenticated(true);
-      setIsAuthReady(true);
+      void persistGoogleUser(user).finally(() => {
+        setIsAuthenticated(true);
+        setIsAuthReady(true);
+      });
     });
 
     return () => {
@@ -100,93 +115,95 @@ function App() {
   return (
     <BrowserRouter>
       <UserProvider>
-        <EventProvider>
-          <Routes>
-            <Route
-              path="/"
-              element={
-                isAuthenticated ? (
-                  <Navigate to="/dashboard" replace />
-                ) : (
-                  <Login setIsAuthenticated={setIsAuthenticated} />
-                )
-              }
-            />
-            <Route
-              path="/signup"
-              element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Signup />}
-            />
-            <Route
-              path="/forgot-password"
-              element={<ForgotPassword />}
-            />
-            <Route
-              path="/reset-password"
-              element={<ResetPassword />}
-            />
-            <Route
-              path="/dashboard"
-              element={
-                isAuthenticated ? (
-                  <AppShell>
-                    <Dashboard />
-                  </AppShell>
-                ) : (
-                  <Navigate to="/" replace />
-                )
-              }
-            />
-            <Route
-              path="/groups"
-              element={
-                isAuthenticated ? (
-                  <AppShell>
-                    <GroupsPage />
-                  </AppShell>
-                ) : (
-                  <Navigate to="/" replace />
-                )
-              }
-            />
-            <Route
-              path="/calendar"
-              element={
-                isAuthenticated ? (
-                  <AppShell>
-                    <CalendarPage />
-                  </AppShell>
-                ) : (
-                  <Navigate to="/" replace />
-                )
-              }
-            />
-            <Route
-              path="/chats"
-              element={
-                isAuthenticated ? (
-                  <AppShell>
-                    <ChatsPage />
-                  </AppShell>
-                ) : (
-                  <Navigate to="/" replace />
-                )
-              }
-            />
-            <Route
-              path="/files"
-              element={
-                isAuthenticated ? (
-                  <AppShell>
-                    <FilesPage />
-                  </AppShell>
-                ) : (
-                  <Navigate to="/" replace />
-                )
-              }
-            />
-            <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />} />
-          </Routes>
-        </EventProvider>
+        <GroupsProvider>
+          <EventProvider>
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  isAuthenticated ? (
+                    <Navigate to="/dashboard" replace />
+                  ) : (
+                    <Login setIsAuthenticated={setIsAuthenticated} />
+                  )
+                }
+              />
+              <Route
+                path="/signup"
+                element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Signup />}
+              />
+              <Route
+                path="/forgot-password"
+                element={<ForgotPassword />}
+              />
+              <Route
+                path="/reset-password"
+                element={<ResetPassword />}
+              />
+              <Route
+                path="/dashboard"
+                element={
+                  isAuthenticated ? (
+                    <AppShell>
+                      <Dashboard />
+                    </AppShell>
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
+                }
+              />
+              <Route
+                path="/groups"
+                element={
+                  isAuthenticated ? (
+                    <AppShell>
+                      <GroupsPage />
+                    </AppShell>
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
+                }
+              />
+              <Route
+                path="/calendar"
+                element={
+                  isAuthenticated ? (
+                    <AppShell>
+                      <CalendarPage />
+                    </AppShell>
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
+                }
+              />
+              <Route
+                path="/chats"
+                element={
+                  isAuthenticated ? (
+                    <AppShell>
+                      <ChatsPage />
+                    </AppShell>
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
+                }
+              />
+              <Route
+                path="/files"
+                element={
+                  isAuthenticated ? (
+                    <AppShell>
+                      <FilesPage />
+                    </AppShell>
+                  ) : (
+                    <Navigate to="/" replace />
+                  )
+                }
+              />
+              <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />} />
+            </Routes>
+          </EventProvider>
+        </GroupsProvider>
       </UserProvider>
     </BrowserRouter>
   );
