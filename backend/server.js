@@ -8,6 +8,7 @@ const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
 const MongoClient = require("mongodb").MongoClient;
+const { MailtrapTransport } = require("mailtrap");
 
 const url =
   "mongodb+srv://RWUser:h6SmYQJKhA539tbG@mernproject.jqcxaqy.mongodb.net/?appName=MernProject";
@@ -54,13 +55,18 @@ mongoose
   .then(() => console.log("Mongoose connected"))
   .catch((err) => console.error(err));
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: "sejalmogalgiddi29@gmail.com",
-    pass: "dedh ezoa denp wiwn",
-  },
-});
+const TOKEN = f81480609a1164b43391c6cdf17a1b8c;
+
+const transport = nodemailer.createTransport(
+  MailtrapTransport({
+    token: TOKEN,
+  })
+);
+
+const sender = {
+  address: "verification@study-buddies.me",
+  name: "Study Buddies",
+};
 
 var taskList = [];
 var cEventList = [];
@@ -228,8 +234,8 @@ app.post("/api/signup", async (req, res, next) => {
 
       const verifyLink = `http://localhost:5000/api/verify/${verifyToken}`;
 
-      await transporter.sendMail({
-        from: "sejalmogalgiddi29@gmail.com",
+      await transport.sendMail({
+        from: sender,
         to: email,
         subject: "Verify your account",
         html: `
@@ -294,9 +300,8 @@ app.post("/api/forgot-password", async (req, res) => {
         }
       );
 
-      await transporter.sendMail({
-        from: "sejalmogalgiddi29@gmail.com",
-        to: email,
+      await transport.sendMail({
+        from: sender,
         subject: "Reset your StudyBuddies password",
         html: `
           <h2>Password reset request</h2>
