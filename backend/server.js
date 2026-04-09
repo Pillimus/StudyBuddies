@@ -41,14 +41,15 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-const frontendUrl = "http://localhost:5173";
+const frontendUrl = "https://study-buddies.me";
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-client.connect()
+client
+  .connect()
   .then(() => console.log("MongoDB connected"))
-  .catch(err => console.error(err));
+  .catch((err) => console.error(err));
 
 mongoose
   .connect(url)
@@ -60,7 +61,7 @@ const TOKEN = f81480609a1164b43391c6cdf17a1b8c;
 const transport = nodemailer.createTransport(
   MailtrapTransport({
     token: TOKEN,
-  })
+  }),
 );
 
 const sender = {
@@ -182,11 +183,9 @@ app.post("/api/login", async (req, res) => {
       return res.status(401).json({ error: "Please verify your email first" });
     }
 
-    const token = jwt.sign(
-      { userId: user.UserID },
-      "secretkey",
-      { expiresIn: "1h" }
-    );
+    const token = jwt.sign({ userId: user.UserID }, "secretkey", {
+      expiresIn: "1h",
+    });
 
     res.status(200).json({
       token,
@@ -195,7 +194,6 @@ app.post("/api/login", async (req, res) => {
       lastName: user.LastName || "",
       email: user.Email,
     });
-
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }
@@ -232,7 +230,7 @@ app.post("/api/signup", async (req, res, next) => {
 
       await db.collection("Accounts").insertOne(newUser);
 
-      const verifyLink = `http://localhost:5000/api/verify/${verifyToken}`;
+      const verifyLink = `https://study-buddies.me/api/verify/${verifyToken}`;
 
       await transport.sendMail({
         from: sender,
@@ -262,10 +260,12 @@ app.get("/api/verify/:token", async (req, res) => {
     return res.redirect(`${frontendUrl}/?verified=invalid`);
   }
 
-  await db.collection("Accounts").updateOne(
-    { verifyToken: token },
-    { $set: { verified: true }, $unset: { verifyToken: "" } }
-  );
+  await db
+    .collection("Accounts")
+    .updateOne(
+      { verifyToken: token },
+      { $set: { verified: true }, $unset: { verifyToken: "" } },
+    );
 
   res.redirect(`${frontendUrl}/?verified=success`);
 });
@@ -297,7 +297,7 @@ app.post("/api/forgot-password", async (req, res) => {
             resetTokenHash,
             resetTokenExpires,
           },
-        }
+        },
       );
 
       await transport.sendMail({
@@ -316,7 +316,9 @@ app.post("/api/forgot-password", async (req, res) => {
         "If an account with that email exists, a password reset link has been sent.",
     });
   } catch (err) {
-    return res.status(500).json({ error: "Unable to process password reset request." });
+    return res
+      .status(500)
+      .json({ error: "Unable to process password reset request." });
   }
 });
 
@@ -324,11 +326,15 @@ app.post("/api/reset-password", async (req, res) => {
   const { token, password } = req.body;
 
   if (!token || !password) {
-    return res.status(400).json({ error: "Token and new password are required" });
+    return res
+      .status(400)
+      .json({ error: "Token and new password are required" });
   }
 
   if (password.length < 6) {
-    return res.status(400).json({ error: "Password must be at least 6 characters long" });
+    return res
+      .status(400)
+      .json({ error: "Password must be at least 6 characters long" });
   }
 
   try {
@@ -344,7 +350,9 @@ app.post("/api/reset-password", async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ error: "Reset link is invalid or has expired" });
+      return res
+        .status(400)
+        .json({ error: "Reset link is invalid or has expired" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -354,10 +362,12 @@ app.post("/api/reset-password", async (req, res) => {
       {
         $set: { Password: hashedPassword },
         $unset: { resetTokenHash: "", resetTokenExpires: "" },
-      }
+      },
     );
 
-    return res.status(200).json({ message: "Password reset successful. Please sign in." });
+    return res
+      .status(200)
+      .json({ message: "Password reset successful. Please sign in." });
   } catch (err) {
     return res.status(500).json({ error: "Unable to reset password." });
   }
@@ -399,11 +409,9 @@ if (eventRoutes) {
 }
 
 app.get("/test-token", (req, res) => {
-  const token = jwt.sign(
-    { userId: "655b4e5f1c9d440000d1a3f7" },
-    "secretKey",
-    { expiresIn: "1h" }
-  );
+  const token = jwt.sign({ userId: "655b4e5f1c9d440000d1a3f7" }, "secretKey", {
+    expiresIn: "1h",
+  });
   res.json({ token });
 });
 
