@@ -1,6 +1,11 @@
-export const signup = async (name: string, lastName: string, email: string, password: string) => {
+export const signup = async (
+  name: string,
+  lastName: string,
+  email: string,
+  password: string,
+) => {
   try {
-    const res = await fetch("http://localhost:5000/api/signup", {
+    const res = await fetch("http://study-buddies.me/api/signup", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
