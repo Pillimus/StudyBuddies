@@ -1,159 +1,69 @@
-import { useMemo, useState } from "react";
-import { useGroups } from "../../context/GroupsContext";
-import { useEvents, EVENT_TYPES, TYPE_COLOR, TYPE_ICON, type AppEvent } from "../../context/EventContext";
-import "./CalendarPage.css";
+import { useState } from 'react';
+import { useEvents, EVENT_TYPES, TYPE_COLOR, TYPE_ICON, AppEvent } from '../../context/EventContext';
+import { CALENDAR_GROUPS } from '../../mockData';
+import './CalendarPage.css';
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DAYS   = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-type EventFormState = Omit<AppEvent, "id">;
-
-function fmt12(time: string) {
-  if (!time) return "";
-  const [hours, minutes] = time.split(":").map(Number);
-  return `${hours % 12 || 12}:${String(minutes).padStart(2, "0")} ${hours >= 12 ? "PM" : "AM"}`;
+function fmt12(t: string) {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
 }
 
-function createEmptyForm(date = ""): EventFormState {
-  return {
-    title: "",
-    date,
-    startTime: "",
-    endTime: "",
-    type: "study",
-    for: "Me",
-    description: "",
-    location: "",
-    groupId: null,
-    groupName: null,
-  };
-}
+const emptyForm = () => ({ title: '', date: '', startTime: '', endTime: '', type: 'study', for: 'Me', description: '', location: '' });
 
 export default function CalendarPage() {
-  const { events, addEvent, editEvent, markDone, eventsError, loadingEvents } = useEvents();
-  const { groups } = useGroups();
+  const { events, addEvent, editEvent, markDone } = useEvents();
   const today = new Date();
-  const [year, setYear] = useState(today.getFullYear());
+  const [year,  setYear]  = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
-  const [selected, setSelected] = useState<AppEvent | null>(null);
+
+  const [selected,   setSelected]   = useState<AppEvent | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [editingEventId, setEditingEventId] = useState<string | number | null>(null);
-  const [form, setForm] = useState<EventFormState>(createEmptyForm());
-  const [formError, setFormError] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
+  const [editMode,   setEditMode]   = useState(false);
+  const [form, setForm] = useState(emptyForm());
 
-  const firstDay = new Date(year, month, 1).getDay();
+  const firstDay    = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells: Array<number | null> = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, index) => index + 1)];
-  const groupOptions = useMemo(() => groups.map((group) => ({ id: String(group.id), name: group.name })), [groups]);
+  const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
 
-  function prevMonth() {
-    if (month === 0) {
-      setMonth(11);
-      setYear((value) => value - 1);
-      return;
-    }
+  function prevMonth() { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); }
+  function nextMonth() { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); }
 
-    setMonth((value) => value - 1);
-  }
-
-  function nextMonth() {
-    if (month === 11) {
-      setMonth(0);
-      setYear((value) => value + 1);
-      return;
-    }
-
-    setMonth((value) => value + 1);
-  }
-
-  function dayStr(day: number) {
-    return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  }
+  function dayStr(day: number) { return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`; }
 
   function getEventsForDay(day: number) {
-    return events
-      .filter((event) => event.date === dayStr(day))
-      .sort((left, right) => left.startTime.localeCompare(right.startTime));
-  }
-
-  function closeCreateModal() {
-    setShowCreate(false);
-    setEditMode(false);
-    setEditingEventId(null);
-    setFormError("");
+    return events.filter(e => e.date === dayStr(day)).sort((a, b) => a.startTime.localeCompare(b.startTime));
   }
 
   function openCreate(day?: number) {
-    setForm(createEmptyForm(day ? dayStr(day) : ""));
+    setForm({ ...emptyForm(), date: day ? dayStr(day) : '' });
     setEditMode(false);
-    setEditingEventId(null);
-    setFormError("");
     setShowCreate(true);
   }
 
-  function openEdit(event: AppEvent) {
-    setForm({
-      title: event.title,
-      date: event.date,
-      startTime: event.startTime,
-      endTime: event.endTime,
-      type: event.type,
-      for: event.for,
-      description: event.description,
-      location: event.location,
-      groupId: event.groupId ?? null,
-      groupName: event.groupName ?? null,
-    });
+  function openEdit(ev: AppEvent) {
+    setForm({ title: ev.title, date: ev.date, startTime: ev.startTime, endTime: ev.endTime, type: ev.type, for: ev.for, description: ev.description, location: ev.location });
     setEditMode(true);
-    setEditingEventId(event.id);
     setSelected(null);
-    setFormError("");
     setShowCreate(true);
   }
 
-  function getForSelectValue() {
-    return form.groupId ? String(form.groupId) : "Me";
+  //TODO: API
+  function handleSave() {
+    if (!form.title || !form.date || !form.startTime) return;
+    if (editMode && selected) {
+      editEvent({ ...form, id: selected.id });
+    } else {
+      addEvent(form);
+    }
+    setShowCreate(false);
+    setSelected(null);
   }
 
-  async function handleSave() {
-    if (!form.title.trim() || !form.date || !form.startTime) {
-      setFormError("Title, date, and start time are required.");
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      setFormError("");
-
-      if (editMode && editingEventId !== null) {
-        await editEvent({ ...form, id: editingEventId });
-      } else {
-        await addEvent(form);
-      }
-
-      closeCreateModal();
-      setSelected(null);
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Unable to save event.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function handleMarkDone(eventId: string | number) {
-    try {
-      await markDone(eventId);
-      if (selected?.id === eventId) {
-        setSelected(null);
-      }
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Unable to update event.");
-    }
-  }
-
-  const isToday = (day: number) => day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+  const isToday  = (day: number) => day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
   const todayStr = today.toISOString().slice(0, 10);
 
   return (
@@ -161,17 +71,15 @@ export default function CalendarPage() {
       <div className="topbar">
         <div className="topbar-left"><h2>Calendar</h2></div>
         <div className="topbar-right">
-          <button className="btn-primary" onClick={() => openCreate()}>+ Create Event</button>
+          <button className="btn-primary" onClick={() => openCreate()}>＋ Create Event</button>
         </div>
       </div>
-
-      {eventsError && <div className="member-input-error">{eventsError}</div>}
 
       <div className="page-scroll">
         <div className="cal-nav">
           <button className="icon-btn" onClick={prevMonth}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-              <path d="M15 18l-6-6 6-6" stroke="url(#sg)" strokeWidth="2" strokeLinecap="round" />
+              <path d="M15 18l-6-6 6-6" stroke="url(#sg)" strokeWidth="2" strokeLinecap="round"/>
             </svg>
           </button>
           <div className="cal-month-label">
@@ -180,86 +88,65 @@ export default function CalendarPage() {
           </div>
           <button className="icon-btn" onClick={nextMonth}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-              <path d="M9 18l6-6-6-6" stroke="url(#sg)" strokeWidth="2" strokeLinecap="round" />
+              <path d="M9 18l6-6-6-6" stroke="url(#sg)" strokeWidth="2" strokeLinecap="round"/>
             </svg>
           </button>
         </div>
 
-        {loadingEvents && events.length === 0 ? (
-          <div className="files-empty">Loading events...</div>
-        ) : (
-          <div className="cal-grid">
-            {DAYS.map((day) => <div key={day} className="cal-day-header">{day}</div>)}
-            {cells.map((day, index) => {
-              const dayEvents = day ? getEventsForDay(day) : [];
-              const isPast = day ? dayStr(day) < todayStr : false;
-
-              return (
-                <div
-                  key={index}
-                  className={`cal-cell ${!day ? "empty" : ""} ${day && isToday(day) ? "today" : ""} ${isPast ? "past" : ""}`}
-                  onClick={() => day && !isPast && openCreate(day)}
-                >
-                  {day && (
-                    <>
-                      <span className="cal-date">{day}</span>
-                      <div className="cal-events">
-                        {dayEvents.slice(0, 3).map((event) => (
-                          <div
-                            key={event.id}
-                            className="cal-event-chip"
-                            style={{ borderLeftColor: TYPE_COLOR[event.type] }}
-                            onClick={(clickEvent) => {
-                              clickEvent.stopPropagation();
-                              setSelected(event);
-                            }}
-                          >
-                            <span style={{ color: TYPE_COLOR[event.type], fontSize: "10px" }}>{TYPE_ICON[event.type]}</span>
-                            {fmt12(event.startTime)} {event.title}
-                          </div>
-                        ))}
-                        {dayEvents.length > 3 && <div className="cal-more">+{dayEvents.length - 3}</div>}
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <div className="cal-grid">
+          {DAYS.map(d => <div key={d} className="cal-day-header">{d}</div>)}
+          {cells.map((day, i) => {
+            const dayEvents = day ? getEventsForDay(day) : [];
+            const isPast    = day ? dayStr(day) < todayStr : false;
+            return (
+              <div key={i}
+                className={`cal-cell ${!day ? 'empty' : ''} ${day && isToday(day) ? 'today' : ''} ${isPast ? 'past' : ''}`}
+                onClick={() => day && !isPast && openCreate(day)}>
+                {day && (
+                  <>
+                    <span className="cal-date">{day}</span>
+                    <div className="cal-events">
+                      {dayEvents.slice(0, 3).map(ev => (
+                        <div key={ev.id} className="cal-event-chip"
+                          style={{ borderLeftColor: TYPE_COLOR[ev.type] }}
+                          onClick={e => { e.stopPropagation(); setSelected(ev); }}>
+                          <span style={{ color: TYPE_COLOR[ev.type], fontSize: '10px' }}>{TYPE_ICON[ev.type]}</span>
+                          {fmt12(ev.startTime)} {ev.title}
+                        </div>
+                      ))}
+                      {dayEvents.length > 3 && <div className="cal-more">+{dayEvents.length - 3}</div>}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {showCreate && (
-        <div className="modal-overlay" onClick={closeCreateModal}>
-          <div className="modal-box" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-overlay" onClick={() => setShowCreate(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>{editMode ? "Edit Event" : "Create Event"}</h3>
-              <button className="icon-btn" onClick={closeCreateModal}>X</button>
+              <h3>{editMode ? 'Edit Event' : 'Create Event'}</h3>
+              <button className="icon-btn" onClick={() => setShowCreate(false)}>✕</button>
             </div>
 
             <div className="field">
               <label>Title *</label>
-              <input
-                value={form.title}
-                onChange={(event) => setForm({ ...form, title: event.target.value })}
-                placeholder="Event title"
-                autoFocus
-              />
+              <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Event title" autoFocus/>
             </div>
 
             <div className="field">
               <label>Type</label>
               <div className="icon-picker">
-                {EVENT_TYPES.map((typeOption) => (
-                  <button
-                    key={typeOption.value}
-                    type="button"
-                    className={`icon-chip ${form.type === typeOption.value ? "selected" : ""}`}
-                    style={form.type === typeOption.value ? { borderColor: typeOption.color, background: `${typeOption.color}22`, color: typeOption.color, transform: "scale(1.15)" } : {}}
-                    onClick={() => setForm({ ...form, type: typeOption.value })}
-                    title={typeOption.value}
-                  >
-                    {typeOption.icon}
+                {EVENT_TYPES.map(t => (
+                  <button key={t.value} type="button"
+                    className={`icon-chip ${form.type === t.value ? 'selected' : ''}`}
+                    style={form.type === t.value ? { borderColor: t.color, background: `${t.color}22`, color: t.color, transform: 'scale(1.15)' } : {}}
+                    onClick={() => setForm({ ...form, type: t.value })}
+                    title={t.value}>
+                    {t.icon}
                   </button>
                 ))}
               </div>
@@ -268,35 +155,13 @@ export default function CalendarPage() {
             <div className="field-row">
               <div className="field">
                 <label>Date *</label>
-                <input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} />
+                <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })}/>
               </div>
               <div className="field">
                 <label>For</label>
-                <select
-                  value={getForSelectValue()}
-                  onChange={(event) => {
-                    const nextValue = event.target.value;
-                    if (nextValue === "Me") {
-                      setForm({ ...form, for: "Me", groupId: null, groupName: null });
-                      return;
-                    }
-
-                    const selectedGroup = groups.find((group) => String(group.id) === nextValue);
-                    if (!selectedGroup) {
-                      setForm({ ...form, for: "Me", groupId: null, groupName: null });
-                      return;
-                    }
-
-                    setForm({
-                      ...form,
-                      for: selectedGroup.name,
-                      groupId: String(selectedGroup.id),
-                      groupName: selectedGroup.name,
-                    });
-                  }}
-                >
+                <select value={form.for} onChange={e => setForm({ ...form, for: e.target.value })}>
                   <option value="Me">Just me</option>
-                  {groupOptions.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+                  {CALENDAR_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
                 </select>
               </div>
             </div>
@@ -304,39 +169,27 @@ export default function CalendarPage() {
             <div className="field-row">
               <div className="field">
                 <label>Start Time *</label>
-                <input type="time" value={form.startTime} onChange={(event) => setForm({ ...form, startTime: event.target.value })} />
+                <input type="time" value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })}/>
               </div>
               <div className="field">
                 <label>End Time</label>
-                <input type="time" value={form.endTime} onChange={(event) => setForm({ ...form, endTime: event.target.value })} />
+                <input type="time" value={form.endTime} onChange={e => setForm({ ...form, endTime: e.target.value })}/>
               </div>
             </div>
 
             <div className="field">
               <label>Location</label>
-              <input
-                value={form.location}
-                onChange={(event) => setForm({ ...form, location: event.target.value })}
-                placeholder="Room, Discord, Zoom..."
-              />
+              <input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="Room, Discord, Zoom..."/>
             </div>
 
             <div className="field">
               <label>Notes</label>
-              <textarea
-                value={form.description}
-                onChange={(event) => setForm({ ...form, description: event.target.value })}
-                placeholder="Optional..."
-              />
+              <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Optional..."/>
             </div>
 
-            {formError && <div className="member-input-error">{formError}</div>}
-
             <div className="modal-footer">
-              <button className="btn-ghost" onClick={closeCreateModal}>Cancel</button>
-              <button className="btn-primary" onClick={() => void handleSave()} disabled={isSaving}>
-                {isSaving ? "Saving..." : editMode ? "Save Changes" : "Create Event"}
-              </button>
+              <button className="btn-ghost" onClick={() => setShowCreate(false)}>Cancel</button>
+              <button className="btn-primary" onClick={handleSave}>{editMode ? 'Save Changes' : 'Create Event'}</button>
             </div>
           </div>
         </div>
@@ -344,31 +197,31 @@ export default function CalendarPage() {
 
       {selected && (
         <div className="modal-overlay" onClick={() => setSelected(null)}>
-          <div className="modal-box" onClick={(event) => event.stopPropagation()}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-event-header">
                 <span className="modal-event-icon" style={{ color: TYPE_COLOR[selected.type] }}>{TYPE_ICON[selected.type]}</span>
                 <h3>{selected.title}</h3>
               </div>
-              <button className="icon-btn" onClick={() => setSelected(null)}>X</button>
+              <button className="icon-btn" onClick={() => setSelected(null)}>✕</button>
             </div>
             <div className="event-detail-list">
               {[
-                { label: "Date", value: selected.date },
-                { label: "Time", value: fmt12(selected.startTime) + (selected.endTime ? ` - ${fmt12(selected.endTime)}` : "") },
-                { label: "For", value: selected.for },
-                ...(selected.location ? [{ label: "Location", value: selected.location }] : []),
-                ...(selected.description ? [{ label: "Notes", value: selected.description }] : []),
-              ].map((row, index) => (
-                <div key={index} className="event-detail-row">
-                  <span className="event-detail-label">{row.label}</span>
-                  <span className="event-detail-value">{row.value}</span>
+                { label: 'Date',     value: selected.date },
+                { label: 'Time',     value: fmt12(selected.startTime) + (selected.endTime ? ` – ${fmt12(selected.endTime)}` : '') },
+                { label: 'For',      value: selected.for },
+                ...(selected.location    ? [{ label: 'Location', value: selected.location    }] : []),
+                ...(selected.description ? [{ label: 'Notes',    value: selected.description }] : []),
+              ].map((r, i) => (
+                <div key={i} className="event-detail-row">
+                  <span className="event-detail-label">{r.label}</span>
+                  <span className="event-detail-value">{r.value}</span>
                 </div>
               ))}
             </div>
             <div className="modal-footer">
-              <button className="btn-ghost btn-mark-done" onClick={() => void handleMarkDone(selected.id)}>Mark Done</button>
-              <button className="btn-ghost" onClick={() => openEdit(selected)}>Edit</button>
+              <button className="btn-ghost btn-mark-done" onClick={() => { markDone(selected.id); setSelected(null); }}>✓ Mark Done</button>
+              <button className="btn-ghost" onClick={() => { setSelected(ev => ev); openEdit(selected); }}>Edit</button>
               <button className="btn-ghost" onClick={() => setSelected(null)}>Close</button>
             </div>
           </div>
