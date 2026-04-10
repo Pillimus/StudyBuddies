@@ -3,11 +3,12 @@ const router = express.Router();
 const upload = require('./upload-file');
 const Note = require('./file-info');
 const authMiddleware = require('../auth');
+const fs = require('fs');
+const path = require('path');
 
 const textExtraction = require('./ai-integration/extract-text');
 const contentSummary = require('./ai-integration/summarize');
 
-// POST /api/notes/upload
 router.post('/upload', authMiddleware, (req, res, next) => {
   upload.single('note')(req, res, (err) => {
     if (err) {
@@ -17,19 +18,47 @@ router.post('/upload', authMiddleware, (req, res, next) => {
   });
 }, async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+    if (!req.file) {
+      const fallbackName = String(req.body.filename || req.body.title || '').trim();
+      if (!fallbackName) return res.status(400).json({ error: 'No file uploaded.' });
+
+      const safeFilename = fallbackName.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const uploadsRoot = path.resolve(__dirname, '..', 'uploaded_file_list');
+      if (!fs.existsSync(uploadsRoot)) {
+        fs.mkdirSync(uploadsRoot, { recursive: true });
+      }
+
+      const storedName = `${Date.now()}-${safeFilename.endsWith('.txt') ? safeFilename : `${safeFilename}.txt`}`;
+      const filePath = path.join(uploadsRoot, storedName);
+      const content = String(req.body.content || '').trim() || `Placeholder content for ${fallbackName}`;
+      fs.writeFileSync(filePath, content, 'utf8');
+
+      const note = await Note.create({
+        user: String(req.user.id),
+        title: req.body.title || fallbackName,
+        filename: fallbackName,
+        storedName,
+        fileType: 'text/plain',
+        filePath,
+        group: req.body.group || null,
+        summary: content,
+      });
+
+      return res.status(201).json({ message: 'Note uploaded successfully.', note });
+    }
 
     const extractedText = await textExtraction(req.file.path, req.file.mimetype);
     const summary = await contentSummary(req.file.path, req.file.mimetype, extractedText);
 
     const note = await Note.create({
-      user: req.user.id,
+      user: String(req.user.id),
       title: req.body.title || req.file.originalname,
       filename: req.file.originalname,
       storedName: req.file.filename,
       fileType: req.file.mimetype,
       filePath: req.file.path,
-      summary
+      group: req.body.group || null,
+      summary,
     });
 
     res.status(201).json({ message: 'Note uploaded successfully.', note });
@@ -38,20 +67,18 @@ router.post('/upload', authMiddleware, (req, res, next) => {
   }
 });
 
-// GET /api/notes: retrieve all notes for the user
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const notes = await Note.find({ user: req.user.id }).sort({ uploadedAt: -1 });
+    const notes = await Note.find({ user: String(req.user.id) }).sort({ uploadedAt: -1 });
     res.json(notes);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET /api/notes/:id/download — stream a file back to the user
 router.get('/:id/download', authMiddleware, async (req, res) => {
   try {
-    const note = await Note.findOne({ _id: req.params.id, user: req.user.id });
+    const note = await Note.findOne({ _id: req.params.id, user: String(req.user.id) });
     if (!note) return res.status(404).json({ error: 'Note not found.' });
 
     res.download(note.filePath, note.filename);
@@ -60,11 +87,9 @@ router.get('/:id/download', authMiddleware, async (req, res) => {
   }
 });
 
-// DELETE /api/notes/:id
-const fs = require('fs');
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    const note = await Note.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+    const note = await Note.findOneAndDelete({ _id: req.params.id, user: String(req.user.id) });
     if (!note) return res.status(404).json({ error: 'Note not found.' });
 
     fs.unlink(note.filePath, err => {

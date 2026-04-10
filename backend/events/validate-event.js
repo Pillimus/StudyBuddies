@@ -6,7 +6,7 @@ const eventRules = [
   body('endTime').isISO8601().withMessage('End time must be a valid date.'),
   body('isAllDay').optional().isBoolean(),
   body('eventType')
-    .isIn(['exam', 'quiz', 'assignment', 'lecture', 'study session', 'office hours', 'other'])
+    .isIn(['exam', 'assignment', 'group', 'study'])
     .withMessage('Invalid event type.'),
 ];
 

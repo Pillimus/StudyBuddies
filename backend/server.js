@@ -239,7 +239,12 @@ app.post("/api/sync-google-user", async (req, res) => {
       );
 
       const updatedUser = await db.collection("Accounts").findOne({ _id: existingUser._id });
-      return res.status(200).json(buildUserResponse(updatedUser));
+      const token = jwt.sign(
+        { userId: updatedUser.UserID },
+        JWT_SECRET,
+        { expiresIn: "1h" }
+      );
+      return res.status(200).json(buildUserResponse(updatedUser, { token }));
     }
 
     const newUser = {
@@ -258,7 +263,13 @@ app.post("/api/sync-google-user", async (req, res) => {
 
     await db.collection("Accounts").insertOne(newUser);
 
-    return res.status(200).json(buildUserResponse(newUser));
+    const token = jwt.sign(
+      { userId: newUser.UserID },
+      JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    return res.status(200).json(buildUserResponse(newUser, { token }));
   } catch (error) {
     return res.status(500).json({ error: "Unable to sync Google user." });
   }

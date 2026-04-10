@@ -1,92 +1,89 @@
 import React, { createContext, useContext, useMemo, useState, ReactNode } from 'react';
 import type { UserProfile } from '../types';
+import { login, sendForgotPassword, signup } from '../api/auth';
 
 interface AuthState {
   user: UserProfile | null;
+  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => void;
-  sendPasswordReset: (email: string) => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<string>;
 }
 
 const AuthContext = createContext<AuthState>({
   user: null,
+  token: null,
   isAuthenticated: false,
   isLoading: false,
   signIn: async () => {},
   signUp: async () => {},
   signInWithGoogle: async () => {},
   signOut: () => {},
-  sendPasswordReset: async () => {},
+  sendPasswordReset: async () => '',
 });
-
-const DEFAULT_USER_PROFILE: UserProfile = {
-  id: '1',
-  email: 'student@example.com',
-  displayName: 'Study Buddy',
-  avatarUrl: null,
-  avatarColor: '#7c5cfc',
-};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const signIn = async (email: string, password: string) => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setUser({
-      ...DEFAULT_USER_PROFILE,
-      id: email,
-      email,
-      displayName: email.split('@')[0],
-    });
-    setIsLoading(false);
+    try {
+      const response = await login(email, password);
+      setToken(response.token);
+      setUser({
+        id: String(response.id),
+        email: response.email,
+        displayName: response.displayName,
+        avatarUrl: response.avatarUrl || null,
+        avatarColor: response.avatarColor || '#5b8dee',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setUser({
-      id: email,
-      email,
-      displayName: `${firstName} ${lastName}`,
-      avatarUrl: null,
-      avatarColor: '#7c5cfc',
-    });
-    setIsLoading(false);
+    try {
+      const response = await signup(email, password, firstName, lastName);
+      if (response.error) {
+        throw new Error(response.error);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const signInWithGoogle = async () => {
-    setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 450));
-    setUser({
-      id: 'google-demo-user',
-      email: 'studybuddy.google@example.com',
-      displayName: 'Google Student',
-      avatarUrl: null,
-      avatarColor: '#7c5cfc',
-    });
-    setIsLoading(false);
+    throw new Error('Google sign-in is not wired on mobile yet.');
   };
 
   const signOut = () => {
     setUser(null);
+    setToken(null);
   };
 
   const sendPasswordReset = async (email: string) => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setIsLoading(false);
+    try {
+      const response = await sendForgotPassword(email);
+      return response.message;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const value = useMemo(
     () => ({
       user,
-      isAuthenticated: Boolean(user),
+      token,
+      isAuthenticated: Boolean(user && token),
       isLoading,
       signIn,
       signUp,
@@ -94,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       sendPasswordReset,
     }),
-    [user, isLoading],
+    [user, token, isLoading],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

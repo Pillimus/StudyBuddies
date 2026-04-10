@@ -9,20 +9,22 @@ export default function ForgotPasswordScreen({ navigation }: any) {
   const { sendPasswordReset, isLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
   const handleReset = async () => {
-    await sendPasswordReset(email);
-    setMessage('If this email exists, a reset link was sent.');
+    setError('');
+    try {
+      const responseMessage = await sendPasswordReset(email);
+      setMessage(responseMessage);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to process password reset.');
+    }
   };
 
   return (
     <AppBackground>
       <SafeAreaView style={styles.container}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} bounces={false}>
           <View style={styles.logoWrap}>
             <BrandMark compact />
           </View>
@@ -42,6 +44,7 @@ export default function ForgotPasswordScreen({ navigation }: any) {
             />
 
             {message ? <Text style={styles.message}>{message}</Text> : null}
+            {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <TouchableOpacity style={styles.primaryButton} onPress={handleReset} disabled={isLoading}>
               <Text style={styles.buttonText}>{isLoading ? 'Sending...' : 'Send reset link'}</Text>
@@ -58,28 +61,11 @@ export default function ForgotPasswordScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 34,
-    paddingBottom: 28,
-  },
-  logoWrap: {
-    alignSelf: 'flex-end',
-    marginRight: 2,
-  },
-  title: {
-    color: '#fff',
-    fontSize: 30,
-    fontWeight: '800',
-  },
-  subtitle: {
-    color: '#98a0bc',
-    marginBottom: 20,
-    lineHeight: 20,
-  },
+  container: { flex: 1 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 34, paddingBottom: 28 },
+  logoWrap: { alignSelf: 'flex-end', marginRight: 2 },
+  title: { color: '#fff', fontSize: 30, fontWeight: '800' },
+  subtitle: { color: '#98a0bc', marginBottom: 20, lineHeight: 20 },
   formCard: {
     backgroundColor: 'rgba(18, 17, 38, 0.96)',
     borderRadius: 28,
@@ -95,21 +81,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 6,
   },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 15,
-  },
-  link: {
-    color: '#7165f2',
-    marginTop: 22,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  message: {
-    color: '#a3e635',
-    marginBottom: 10,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
+  buttonText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  link: { color: '#7165f2', marginTop: 22, textAlign: 'center', fontWeight: '600' },
+  message: { color: '#a3e635', marginBottom: 10, textAlign: 'center', lineHeight: 20 },
+  error: { color: '#f87171', marginBottom: 10, textAlign: 'center' },
 });

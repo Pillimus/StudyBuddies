@@ -38,7 +38,7 @@ export interface Group {
 }
 
 export interface FileItem {
-  id: number;
+  id: string | number;
   name: string;
   type: string;
   size: string;
@@ -55,7 +55,7 @@ export interface Notification {
 }
 
 export interface AppEvent {
-  id: number;
+  id: string | number;
   title: string;
   date: string;
   startTime: string;

@@ -95,7 +95,7 @@ function EventDetailModal({
 }: {
   event: AppEvent | null;
   onClose: () => void;
-  onMarkDone: (eventId: number) => void;
+  onMarkDone: (eventId: string | number) => void;
 }) {
   if (!event) return null;
 
