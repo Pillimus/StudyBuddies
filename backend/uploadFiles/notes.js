@@ -6,6 +6,7 @@ const authMiddleware = require('../auth');
 
 const textExtraction = require('./ai-integration/extract-text');
 const contentSummary = require('./ai-integration/summarize');
+const chatWithNotes = require('./ai-integration/chat-with-notes');
 
 // POST /api/notes/upload
 router.post('/upload', authMiddleware, (req, res, next) => {
@@ -23,12 +24,15 @@ router.post('/upload', authMiddleware, (req, res, next) => {
     const summary = await contentSummary(req.file.path, req.file.mimetype, extractedText);
 
     const note = await Note.create({
-      user: req.user.id,
-      title: req.body.title || req.file.originalname,
+      user: String(req.user.id),
+      title: req.file.originalname,
       filename: req.file.originalname,
       storedName: req.file.filename,
       fileType: req.file.mimetype,
       filePath: req.file.path,
+      groupId: req.body.groupId ? String(req.body.groupId) : null,
+      groupName: req.body.groupName ? String(req.body.groupName) : null,
+      extractedText,
       summary
     });
 
@@ -41,7 +45,7 @@ router.post('/upload', authMiddleware, (req, res, next) => {
 // GET /api/notes: retrieve all notes for the user
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const notes = await Note.find({ user: req.user.id }).sort({ uploadedAt: -1 });
+    const notes = await Note.find({ user: String(req.user.id) }).sort({ uploadedAt: -1 });
     res.json(notes);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -49,9 +53,46 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 // GET /api/notes/:id/download — stream a file back to the user
+router.post('/chat', authMiddleware, async (req, res) => {
+  try {
+    const noteIds = [...new Set((req.body.noteIds || []).map((noteId) => String(noteId).trim()).filter(Boolean))];
+    const prompt = String(req.body.prompt || '').trim();
+
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required.' });
+    }
+
+    if (noteIds.length === 0) {
+      return res.status(400).json({ error: 'Select at least one note before chatting.' });
+    }
+
+    const notes = await Note.find({
+      _id: { $in: noteIds },
+      user: String(req.user.id),
+    }).sort({ uploadedAt: -1 });
+
+    if (notes.length === 0) {
+      return res.status(404).json({ error: 'No matching notes were found for this account.' });
+    }
+
+    const reply = await chatWithNotes({ notes, prompt });
+
+    return res.status(200).json({
+      reply,
+      notesUsed: notes.map(note => ({
+        id: String(note._id),
+        title: note.title,
+      })),
+    });
+  } catch (err) {
+    const statusCode = Number(err.statusCode) || 500;
+    return res.status(statusCode).json({ error: err.message || 'Unable to chat with notes.' });
+  }
+});
+
 router.get('/:id/download', authMiddleware, async (req, res) => {
   try {
-    const note = await Note.findOne({ _id: req.params.id, user: req.user.id });
+    const note = await Note.findOne({ _id: req.params.id, user: String(req.user.id) });
     if (!note) return res.status(404).json({ error: 'Note not found.' });
 
     res.download(note.filePath, note.filename);
@@ -64,7 +105,7 @@ router.get('/:id/download', authMiddleware, async (req, res) => {
 const fs = require('fs');
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    const note = await Note.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+    const note = await Note.findOneAndDelete({ _id: req.params.id, user: String(req.user.id) });
     if (!note) return res.status(404).json({ error: 'Note not found.' });
 
     fs.unlink(note.filePath, err => {

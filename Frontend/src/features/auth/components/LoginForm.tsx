@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { buildApiUrl } from "../../../api/config";
 import { googleLogin } from "../../../api/googleLogin";
 
 type Props = {
@@ -43,7 +44,7 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
     }
 
     try {
-      const res = await fetch("http://localhost:5000/api/login", {
+      const res = await fetch(buildApiUrl("/api/login"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -76,6 +77,10 @@ const LoginForm = ({ setPage, setIsAuthenticated }: Props) => {
 
     
       localStorage.setItem("user", JSON.stringify(data));
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+      }
+      window.dispatchEvent(new Event("auth-changed"));
       setIsAuthenticated(true);
       navigate("/dashboard");
 

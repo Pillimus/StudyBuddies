@@ -1,105 +1,237 @@
-const express = require('express');
+const express = require("express");
+const mongoose = require("mongoose");
+
 const router = express.Router();
-const Event = require('./event-info');
-const authMiddleware = require('../auth');
-const { eventRules, validate } = require('./validate-event');
+const Event = require("./event-info");
+const authMiddleware = require("../auth");
+const { eventRules, validate } = require("./validate-event");
 
-// POST /api/events: create event
-router.post('/', authMiddleware, eventRules, validate, async (req, res) => {
-  
-  console.log('POST handler reached');
-  
+function getGroupsCollection() {
+  const database = mongoose.connection.useDb("Users", { useCache: true });
+  if (!database) {
+    throw new Error("Database connection is not ready.");
+  }
+
+  return database.collection("Groups");
+}
+
+function getAccountsCollection() {
+  const database = mongoose.connection.useDb("Users", { useCache: true });
+  if (!database) {
+    throw new Error("Database connection is not ready.");
+  }
+
+  return database.collection("Accounts");
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+async function resolveCurrentAccount(userId) {
+  const accountsCollection = getAccountsCollection();
+  const numericUserId = Number(userId);
+  const clauses = [{ UserID: userId }];
+
+  if (Number.isFinite(numericUserId)) {
+    clauses.push({ UserID: numericUserId });
+  }
+
+  return accountsCollection.findOne({ $or: clauses });
+}
+
+function buildMembershipClauses(userId, email) {
+  const clauses = [{ "Members.userId": userId }];
+  const numericUserId = Number(userId);
+
+  if (Number.isFinite(numericUserId)) {
+    clauses.push({ "Members.userId": numericUserId });
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+  if (normalizedEmail) {
+    clauses.push({ "Members.email": normalizedEmail });
+  }
+
+  return clauses;
+}
+
+function buildGroupIdClauses(groupId) {
+  const clauses = [{ GroupID: groupId }, { GroupID: String(groupId) }];
+  const numericGroupId = Number(groupId);
+
+  if (Number.isFinite(numericGroupId)) {
+    clauses.push({ GroupID: numericGroupId });
+  }
+
+  return clauses;
+}
+
+async function getAccessibleGroups(userId) {
+  const account = await resolveCurrentAccount(userId);
+  const groupsCollection = getGroupsCollection();
+  return groupsCollection
+    .find({ $or: buildMembershipClauses(userId, account?.Email) }, { projection: { GroupID: 1, Name: 1 } })
+    .toArray();
+}
+
+async function resolveAssignedGroup(groupId, userId) {
+  const cleanGroupId = String(groupId || "").trim();
+  if (!cleanGroupId) {
+    return null;
+  }
+
+  const account = await resolveCurrentAccount(userId);
+  const groupsCollection = getGroupsCollection();
+  const group = await groupsCollection.findOne({
+    $and: [
+      { $or: buildGroupIdClauses(cleanGroupId) },
+      { $or: buildMembershipClauses(userId, account?.Email) },
+    ],
+  });
+
+  if (!group) {
+    const error = new Error("You can only assign events to groups you belong to.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return {
+    groupId: String(group.GroupID),
+    groupName: String(group.Name || "").trim(),
+  };
+}
+
+function buildEventPayload(body, assignedGroup) {
+  const groupId = assignedGroup?.groupId ?? null;
+  const groupName = assignedGroup?.groupName ?? null;
+
+  return {
+    title: String(body.title || "").trim(),
+    description: String(body.description || "").trim(),
+    date: String(body.date || "").trim(),
+    startTime: String(body.startTime || "").trim(),
+    endTime: String(body.endTime || "").trim(),
+    forLabel: groupName || String(body.forLabel || "Me").trim() || "Me",
+    groupId,
+    groupName,
+    location: String(body.location || "").trim(),
+    eventType: String(body.eventType || "").trim(),
+  };
+}
+
+async function findAccessibleEvent(eventId, userId) {
+  const event = await Event.findById(eventId);
+  if (!event) {
+    return null;
+  }
+
+  const cleanUserId = String(userId);
+  if (!event.groupId) {
+    return String(event.user) === cleanUserId ? event : null;
+  }
+
+  const groups = await getAccessibleGroups(cleanUserId);
+  const isMember = groups.some((group) => String(group.GroupID) === String(event.groupId));
+  return isMember ? event : null;
+}
+
+router.post("/", authMiddleware, eventRules, validate, async (req, res) => {
   try {
-    const { title, description, startTime, endTime, isAllDay, subject, eventType } = req.body;
-
-console.log('attempting Event.create with user:', req.user.id);
-
+    const cleanUserId = String(req.user.id);
+    const assignedGroup = await resolveAssignedGroup(req.body.groupId, cleanUserId);
     const event = await Event.create({
-      user: req.user.id,
-      title,
-      description,
-      startTime,
-      endTime,
-      isAllDay,
-      subject,
-      eventType,
+      user: cleanUserId,
+      ...buildEventPayload(req.body, assignedGroup),
     });
 
-    console.log('event created:', event);
-
-    res.status(201).json({ message: 'Event created.', event });
+    return res.status(201).json({ message: "Event created.", event });
   } catch (err) {
-
-
-    console.error('error name:', err.name);
-    console.error('error message:', err.message);
-    console.error('full error:', err);
-
-    res.status(500).json({ error: err.message });
+    return res.status(Number(err.statusCode) || 500).json({ error: err.message || "Unable to create event." });
   }
 });
 
-// GET /api/events: fetch all events for the user
-// can also filter by ?start=<date>&end=<date>&eventType=exam&subject=Math
-router.get('/', authMiddleware, async (req, res) => {
+router.get("/", authMiddleware, async (req, res) => {
   try {
-    const filter = { user: req.user.id };
+    const cleanUserId = String(req.user.id);
+    const groups = await getAccessibleGroups(cleanUserId);
+    const sharedGroupIds = groups.map((group) => String(group.GroupID));
+    const filter = {
+      $or: [
+        {
+          user: cleanUserId,
+          $or: [{ groupId: null }, { groupId: { $exists: false } }, { groupId: "" }],
+        },
+        ...(sharedGroupIds.length > 0 ? [{ groupId: { $in: sharedGroupIds } }] : []),
+      ],
+    };
 
-    if (req.query.start && req.query.end) {
-      filter.startTime = {
-        $gte: new Date(req.query.start),
-        $lte: new Date(req.query.end)
-      };
+    if (req.query.start || req.query.end) {
+      filter.date = {};
+      if (req.query.start) {
+        filter.date.$gte = String(req.query.start);
+      }
+      if (req.query.end) {
+        filter.date.$lte = String(req.query.end);
+      }
     }
-    if (req.query.eventType) filter.eventType = req.query.eventType;
-    if (req.query.subject) filter.subject = req.query.subject;
 
-    const events = await Event.find(filter).sort({ startTime: 1 });
-    res.json(events);
+    if (req.query.eventType) {
+      filter.eventType = String(req.query.eventType);
+    }
+
+    if (req.query.forLabel) {
+      filter.forLabel = String(req.query.forLabel);
+    }
+
+    const events = await Event.find(filter).sort({ date: 1, startTime: 1, createdAt: 1 });
+    return res.status(200).json({ events });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message || "Unable to load events." });
   }
 });
 
-// GET /api/events/:id — get a single event
-router.get('/:id', authMiddleware, async (req, res) => {
+router.get("/:id", authMiddleware, async (req, res) => {
   try {
-    const event = await Event.findOne({ _id: req.params.id, user: req.user.id });
-    if (!event) return res.status(404).json({ error: 'Event not found.' });
+    const event = await findAccessibleEvent(req.params.id, req.user.id);
+    if (!event) {
+      return res.status(404).json({ error: "Event not found." });
+    }
 
-    res.json(event);
+    return res.status(200).json({ event });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message || "Unable to load event." });
   }
 });
 
-// PUT /api/events/:id — update an event's info
-router.put('/:id', authMiddleware, eventRules, validate, async (req, res) => {
+router.put("/:id", authMiddleware, eventRules, validate, async (req, res) => {
   try {
-    const { title, description, startTime, endTime, isAllDay, subject, eventType } = req.body;
+    const existingEvent = await findAccessibleEvent(req.params.id, req.user.id);
+    if (!existingEvent) {
+      return res.status(404).json({ error: "Event not found." });
+    }
 
-    const event = await Event.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.id },
-      { title, description, startTime, endTime, isAllDay, subject, eventType },
-      { new: true, runValidators: true }
-    );
+    const assignedGroup = await resolveAssignedGroup(req.body.groupId, String(req.user.id));
+    Object.assign(existingEvent, buildEventPayload(req.body, assignedGroup));
+    await existingEvent.save();
 
-    if (!event) return res.status(404).json({ error: 'Event not found.' });
-    res.json({ message: 'Event updated.', event });
+    return res.status(200).json({ message: "Event updated.", event: existingEvent });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(Number(err.statusCode) || 500).json({ error: err.message || "Unable to update event." });
   }
 });
 
-// DELETE /api/events/:id — delete an event
-router.delete('/:id', authMiddleware, async (req, res) => {
+router.delete("/:id", authMiddleware, async (req, res) => {
   try {
-    const event = await Event.findOneAndDelete({ _id: req.params.id, user: req.user.id });
-    if (!event) return res.status(404).json({ error: 'Event not found.' });
+    const event = await findAccessibleEvent(req.params.id, req.user.id);
+    if (!event) {
+      return res.status(404).json({ error: "Event not found." });
+    }
 
-    res.json({ message: 'Event deleted.' });
+    await Event.deleteOne({ _id: event._id });
+    return res.status(200).json({ message: "Event deleted." });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message || "Unable to delete event." });
   }
 });
 

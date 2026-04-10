@@ -27,7 +27,22 @@ const UserContext = createContext<UserCtx>({
 });
 
 export function UserProvider({children}:{children:ReactNode}) {
+  const [storageVersion, setStorageVersion] = useState(0);
   const storedUser = readStoredUser();
+
+  useEffect(() => {
+    function syncFromStorage() {
+      setStorageVersion(version => version + 1);
+    }
+
+    window.addEventListener('storage', syncFromStorage);
+    window.addEventListener('auth-changed', syncFromStorage);
+
+    return () => {
+      window.removeEventListener('storage', syncFromStorage);
+      window.removeEventListener('auth-changed', syncFromStorage);
+    };
+  }, []);
 
   const [profile, setProfile] = useState<UserProfile>({
     displayName: getFallbackDisplayName(storedUser),
@@ -41,6 +56,11 @@ export function UserProvider({children}:{children:ReactNode}) {
 
     async function loadProfile() {
       if (!storedUser.id && !storedUser.email) {
+        setProfile({
+          displayName: '',
+          avatarUrl: null,
+          avatarColor: COLORS[0],
+        });
         setLoadingProfile(false);
         return;
       }
@@ -71,9 +91,10 @@ export function UserProvider({children}:{children:ReactNode}) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [storedUser.id, storedUser.email, storageVersion]);
 
   async function updateProfile(p:Partial<UserProfile>) {
+    const latestStoredUser = readStoredUser();
     const nextProfile = { ...profile, ...p };
     const savedProfile = await saveProfile({
       displayName: nextProfile.displayName,
@@ -88,9 +109,10 @@ export function UserProvider({children}:{children:ReactNode}) {
     });
 
     localStorage.setItem('user', JSON.stringify({
-      ...storedUser,
+      ...latestStoredUser,
       ...savedProfile,
     }));
+    window.dispatchEvent(new Event('auth-changed'));
   }
 
   return <UserContext.Provider value={{profile,updateProfile,loadingProfile}}>{children}</UserContext.Provider>;

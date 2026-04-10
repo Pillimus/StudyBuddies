@@ -38,13 +38,14 @@ export interface Group {
 }
 
 export interface FileItem {
-  id: number;
+  id: number | string;
   name: string;
   type: string;
   size: string;
   group: string | null;
   uploaded: string;
   content?: string;
+  summary?: string;
 }
 
 export interface Notification {
@@ -55,7 +56,7 @@ export interface Notification {
 }
 
 export interface AppEvent {
-  id: number;
+  id: number | string;
   title: string;
   date: string;
   startTime: string;
@@ -64,4 +65,6 @@ export interface AppEvent {
   for: string;
   description: string;
   location: string;
+  groupId?: number | string | null;
+  groupName?: string | null;
 }

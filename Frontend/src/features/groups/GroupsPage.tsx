@@ -46,22 +46,19 @@ export default function GroupsPage() {
   const { profile, updateProfile } = useUser();
   const { groups, loadingGroups, groupsError, addGroup, updateGroup, removeGroupById } = useGroups();
   const [selected, setSelected] = useState<Group | null>(null);
-  const [expanded, setExpanded] = useState({ members: true, events: true });
+  const [expanded, setExpanded] = useState({ members: true });
   const [addInput, setAddInput] = useState('');
   const [pageError, setPageError] = useState('');
 
   const [showCreate, setShowCreate] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [showGroupPic, setShowGroupPic] = useState(false);
   const [showLeave, setShowLeave] = useState(false);
   const [newName, setNewName] = useState('');
   const [newMembers, setNewMembers] = useState('');
   const [newColor] = useState(() => randomColor());
-  const [newAvatarUrl, setNewAvatarUrl] = useState<string | undefined>();
 
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editAvatarUrl, setEditAvatarUrl] = useState<string | undefined>();
-  const [editGroupUrl, setEditGroupUrl] = useState<string | undefined>();
 
   const [searchQ, setSearchQ] = useState('');
   const [createMemberError, setCreateMemberError] = useState('');
@@ -95,7 +92,7 @@ export default function GroupsPage() {
     setSelected(updated);
   }
 
-  function toggle(key: 'members' | 'events') {
+  function toggle(key: 'members') {
     setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
@@ -131,21 +128,9 @@ export default function GroupsPage() {
     }
   }
 
-  function openGroupPic() {
-    setEditGroupUrl(selected?.avatarUrl);
-    setShowGroupPic(true);
-  }
-
   function resetCreateState() {
     setShowCreate(false);
     setCreateMemberError('');
-  }
-
-  function saveGroupPic() {
-    if (!selected) return;
-    const updated = { ...selected, avatarUrl: editGroupUrl };
-    syncUpdatedGroup(updated);
-    setShowGroupPic(false);
   }
 
   async function handleCreate() {
@@ -157,7 +142,6 @@ export default function GroupsPage() {
       const createdGroup = await createGroup({
         name: newName.trim(),
         color: newColor,
-        avatarUrl: newAvatarUrl,
         memberEmails: parseEmails(newMembers),
       });
       addGroup(createdGroup);
@@ -165,7 +149,6 @@ export default function GroupsPage() {
       resetCreateState();
       setNewName('');
       setNewMembers('');
-      setNewAvatarUrl(undefined);
     } catch (error) {
       setCreateMemberError(error instanceof Error ? error.message : 'Unable to create group.');
     } finally {
@@ -258,7 +241,7 @@ export default function GroupsPage() {
               className={`group-row ${selected?.id === group.id ? 'active' : ''}`}
               onClick={() => {
                 setSelected(group);
-                setExpanded({ members: true, events: true });
+                setExpanded({ members: true });
                 setAddInput('');
                 setAddMemberError('');
               }}
@@ -283,8 +266,6 @@ export default function GroupsPage() {
                   url={selected.avatarUrl}
                   size={50}
                   square
-                  editable={isCreator}
-                  onEdit={openGroupPic}
                 />
                 <div className="group-header-info">
                   <div className="group-detail-name">{selected.name}</div>
@@ -349,25 +330,6 @@ export default function GroupsPage() {
                   </div>
                 )}
               </div>
-
-              <div className="collapsible">
-                <button className="collapsible-header" onClick={() => toggle('events')}>
-                  <span>Upcoming Events</span>
-                  <span className="collapse-arrow">{expanded.events ? '▲' : '▼'}</span>
-                </button>
-                {expanded.events && (
-                  <div className="collapsible-body scrollable">
-                    {selected.events.length === 0 && <div className="group-events-empty">No events yet</div>}
-                    {selected.events.map((event, index) => (
-                      <div key={index} className="group-event-row" onClick={() => navigate('/calendar')}>
-                        <div className="group-event-title">{event.title}</div>
-                        <div className="group-event-meta">{event.date} · {event.time}</div>
-                      </div>
-                    ))}
-                    <button className="btn-ghost btn-create-event" onClick={() => navigate('/calendar')}>+ Create Event</button>
-                  </div>
-                )}
-              </div>
             </>
           ) : (
             <div className="detail-empty">{loadingGroups ? 'Loading your groups...' : 'Select a group to view details'}</div>
@@ -409,22 +371,6 @@ export default function GroupsPage() {
         </div>
       )}
 
-      {showGroupPic && selected && (
-        <div className="modal-overlay" onClick={e => closeOnBackdrop(e, () => setShowGroupPic(false))}>
-          <div className="modal-box" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Edit Group Photo</h3>
-              <button type="button" className="icon-btn" onClick={() => setShowGroupPic(false)}>x</button>
-            </div>
-            <AvatarUploadZone currentUrl={editGroupUrl} currentColor={selected.color} letter={selected.name[0]} size={88} onFile={setEditGroupUrl}/>
-            <div className="modal-footer">
-              <button type="button" className="btn-ghost" onClick={() => setShowGroupPic(false)}>Cancel</button>
-              <button type="button" className="btn-primary" onClick={saveGroupPic}>Save</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {showLeave && selected && (
         <div className="modal-overlay" onClick={e => closeOnBackdrop(e, () => setShowLeave(false))}>
           <div className="modal-box" onClick={e => e.stopPropagation()}>
@@ -453,7 +399,14 @@ export default function GroupsPage() {
               <h3>Create Group</h3>
               <button type="button" className="icon-btn" onClick={resetCreateState}>x</button>
             </div>
-            <AvatarUploadZone currentUrl={newAvatarUrl} currentColor={newColor} letter={newName ? newName[0] : '?'} size={72} onFile={setNewAvatarUrl}/>
+            <div style={{display:'flex',justifyContent:'center',marginBottom:'12px'}}>
+              <Avatar
+                letter={newName ? newName[0].toUpperCase() : '?'}
+                color={newColor}
+                size={72}
+                square
+              />
+            </div>
             <div className="field field-mt">
               <label>Group Name *</label>
               <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="" autoFocus/>
@@ -482,3 +435,4 @@ export default function GroupsPage() {
     </div>
   );
 }
+

@@ -26,8 +26,35 @@ export function GroupsProvider({ children }: { children: ReactNode }) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [groupsError, setGroupsError] = useState('');
+  const [storageVersion, setStorageVersion] = useState(0);
+  const storedUser = JSON.parse(localStorage.getItem('user') || '{}') as {
+    id?: number | string;
+    email?: string;
+  };
+  const hasIdentity = Boolean(storedUser.id || storedUser.email);
+
+  useEffect(() => {
+    function syncFromStorage() {
+      setStorageVersion(version => version + 1);
+    }
+
+    window.addEventListener('storage', syncFromStorage);
+    window.addEventListener('auth-changed', syncFromStorage);
+
+    return () => {
+      window.removeEventListener('storage', syncFromStorage);
+      window.removeEventListener('auth-changed', syncFromStorage);
+    };
+  }, []);
 
   const refreshGroups = useCallback(async () => {
+    if (!hasIdentity) {
+      setGroups([]);
+      setGroupsError('');
+      setLoadingGroups(false);
+      return [];
+    }
+
     setLoadingGroups(true);
     setGroupsError('');
 
@@ -41,7 +68,7 @@ export function GroupsProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoadingGroups(false);
     }
-  }, []);
+  }, [hasIdentity, storageVersion]);
 
   useEffect(() => {
     void refreshGroups();

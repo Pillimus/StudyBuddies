@@ -31,5 +31,6 @@ export async function syncGoogleUser(params: SyncGoogleUserParams) {
     displayName: string;
     avatarUrl: string | null;
     avatarColor: string;
+    token?: string;
   };
 }

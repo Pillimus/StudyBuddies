@@ -23,11 +23,9 @@ interface AvatarProps {
   size?:     number;
   square?:   boolean;
   onClick?:  () => void;
-  editable?: boolean;
-  onEdit?:   () => void;
 }
 
-export function Avatar({ letter, color, url, size=38, square=false, onClick, editable=false, onEdit }: AvatarProps) {
+export function Avatar({ letter, color, url, size=38, square=false, onClick }: AvatarProps) {
   const radius = square ? `${Math.round(size*0.28)}px` : '50%';
   return (
     <div
@@ -50,19 +48,6 @@ export function Avatar({ letter, color, url, size=38, square=false, onClick, edi
         ? <img src={url} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
         : letter
       }
-      {editable && (
-        <button
-          onClick={e=>{e.stopPropagation();onEdit?.();}}
-          style={{
-            position:'absolute',bottom:0,right:0,
-            width:Math.max(18,size*0.35),height:Math.max(18,size*0.35),
-            borderRadius:'50%',border:'1px solid rgba(120,160,255,0.3)',
-            background:'rgba(7,5,15,0.85)',color:'var(--text-dim)',
-            display:'flex',alignItems:'center',justifyContent:'center',
-            fontSize:'10px',cursor:'pointer',
-          }}
-        >✎</button>
-      )}
     </div>
   );
 }
@@ -85,7 +70,6 @@ export function useImageUpload(onFile:(url:string)=>void) {
   return {trigger, Input};
 }
 
-//upload drop zone
 interface UploadZoneProps {
   currentUrl?: string | null;
   currentColor?: string;

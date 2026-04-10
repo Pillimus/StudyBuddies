@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
+const { MailtrapTransport } = require("mailtrap");
 const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
@@ -56,13 +57,33 @@ mongoose
   .then(() => console.log("Mongoose connected"))
   .catch((err) => console.error(err));
 
-const transporter = nodemailer.createTransport({
-  service: config.emailService,
-  auth: {
-    user: config.emailUser,
-    pass: config.emailPass,
-  },
-});
+function createEmailTransport() {
+  if (config.emailProvider === "mailtrap-api") {
+    if (!config.mailtrapApiToken) {
+      throw new Error("MAILTRAP_TOKEN or MAILTRAP_API_TOKEN is required for Mailtrap email sending.");
+    }
+
+    return nodemailer.createTransport(
+      MailtrapTransport({
+        token: config.mailtrapApiToken,
+      }),
+    );
+  }
+
+  return nodemailer.createTransport({
+    service: config.emailService,
+    auth: {
+      user: config.emailUser,
+      pass: config.emailPass,
+    },
+  });
+}
+
+const transporter = createEmailTransport();
+const sender = {
+  address: config.emailFrom,
+  name: config.emailFromName,
+};
 
 var taskList = [];
 var cEventList = [];
@@ -71,6 +92,25 @@ var groupList = [];
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
+}
+
+function htmlToText(html) {
+  return String(html || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function sendEmail({ to, subject, html, text }) {
+  return transporter.sendMail({
+    from: sender,
+    to,
+    subject,
+    html,
+    text: text || htmlToText(html),
+  });
 }
 
 function escapeRegex(value) {
@@ -239,7 +279,12 @@ app.post("/api/sync-google-user", async (req, res) => {
       );
 
       const updatedUser = await db.collection("Accounts").findOne({ _id: existingUser._id });
-      return res.status(200).json(buildUserResponse(updatedUser));
+      const token = jwt.sign(
+        { userId: updatedUser.UserID },
+        JWT_SECRET,
+        { expiresIn: "1h" }
+      );
+      return res.status(200).json(buildUserResponse(updatedUser, { token }));
     }
 
     const newUser = {
@@ -258,7 +303,13 @@ app.post("/api/sync-google-user", async (req, res) => {
 
     await db.collection("Accounts").insertOne(newUser);
 
-    return res.status(200).json(buildUserResponse(newUser));
+    const token = jwt.sign(
+      { userId: newUser.UserID },
+      JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    return res.status(200).json(buildUserResponse(newUser, { token }));
   } catch (error) {
     return res.status(500).json({ error: "Unable to sync Google user." });
   }
@@ -427,8 +478,7 @@ app.post("/api/signup", async (req, res, next) => {
 
       const verifyLink = `${apiBaseUrl}/api/verify/${verifyToken}`;
 
-      await transporter.sendMail({
-        from: config.emailFrom,
+      await sendEmail({
         to: normalizedEmail,
         subject: "Verify your account",
         html: `
@@ -546,8 +596,7 @@ app.post("/api/forgot-password", async (req, res) => {
         }
       );
 
-      await transporter.sendMail({
-        from: config.emailFrom,
+      await sendEmail({
         to: normalizedEmail,
         subject: "Reset your StudyBuddies password",
         html: `

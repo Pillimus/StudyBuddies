@@ -1,23 +1,42 @@
 const fs = require('fs');
-const path = require('path');
-
-// IMPORTANT: pdf-parse version 1.1.1 MUST BE INSTALLED!! (install pdf-parse@1.1.1)
-const pdfParse = require('pdf-parse'); 
-
+const pdfParseModule = require('pdf-parse');
 const mammoth = require('mammoth');
+
+async function extractPdfText(buffer) {
+  if (typeof pdfParseModule === 'function') {
+    const pdfData = await pdfParseModule(buffer);
+    return pdfData.text;
+  }
+
+  if (typeof pdfParseModule?.PDFParse === 'function') {
+    const parser = new pdfParseModule.PDFParse({ data: buffer });
+    try {
+      const pdfData = await parser.getText();
+      if (typeof parser.destroy === 'function') {
+        await parser.destroy();
+      }
+      return pdfData.text;
+    } catch (error) {
+      if (typeof parser.destroy === 'function') {
+        await parser.destroy();
+      }
+      throw error;
+    }
+  }
+
+  throw new Error('Unsupported pdf-parse module shape.');
+}
 
 async function extractText(filePath, mimeType) {
   const buffer = fs.readFileSync(filePath);
 
   switch (mimeType) {
     case 'application/pdf':
-      const pdfData = await pdfParse(buffer);
-      return pdfData.text;
+      return extractPdfText(buffer);
 
     case 'application/msword':
     case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-      const docData = await mammoth.extractRawText({ buffer });
-      return docData.value;
+      return (await mammoth.extractRawText({ buffer })).value;
 
     case 'text/plain':
       return buffer.toString('utf-8');
@@ -26,3 +45,5 @@ async function extractText(filePath, mimeType) {
       throw new Error('Unsupported file type for text extraction.');
   }
 }
+
+module.exports = extractText;

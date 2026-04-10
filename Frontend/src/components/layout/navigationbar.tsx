@@ -27,7 +27,9 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    localStorage.removeItem("user");
     localStorage.removeItem("token");
+    window.dispatchEvent(new Event("auth-changed"));
     window.location.reload();
   };
 

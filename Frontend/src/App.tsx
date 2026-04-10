@@ -55,7 +55,12 @@ function App() {
           "user",
           JSON.stringify(syncedUser),
         );
+        if (syncedUser.token) {
+          localStorage.setItem("token", syncedUser.token);
+        }
+        window.dispatchEvent(new Event("auth-changed"));
       } catch {
+        localStorage.removeItem("token");
         localStorage.setItem(
           "user",
           JSON.stringify({
@@ -65,6 +70,7 @@ function App() {
             email: user.email ?? "",
           }),
         );
+        window.dispatchEvent(new Event("auth-changed"));
       }
     };
 
@@ -91,6 +97,8 @@ function App() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session?.user) {
         localStorage.removeItem("user");
+        localStorage.removeItem("token");
+        window.dispatchEvent(new Event("auth-changed"));
         setIsAuthenticated(false);
         setIsAuthReady(true);
         return;
@@ -105,6 +113,20 @@ function App() {
 
     return () => {
       subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    function syncAuthFromStorage() {
+      setIsAuthenticated(!!localStorage.getItem("user"));
+    }
+
+    window.addEventListener("storage", syncAuthFromStorage);
+    window.addEventListener("auth-changed", syncAuthFromStorage);
+
+    return () => {
+      window.removeEventListener("storage", syncAuthFromStorage);
+      window.removeEventListener("auth-changed", syncAuthFromStorage);
     };
   }, []);
 

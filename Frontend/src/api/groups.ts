@@ -34,6 +34,7 @@ function getCurrentUser() {
   return JSON.parse(localStorage.getItem('user') || '{}') as {
     id?: number | string;
     email?: string;
+    token?: string;
   };
 }
 
@@ -42,7 +43,7 @@ function buildGroupsQuery(user: { id?: number | string; email?: string }) {
 }
 
 function getAuthHeaders() {
-  const token = localStorage.getItem('token');
+  const token = getCurrentUser().token;
   return {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),

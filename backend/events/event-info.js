@@ -1,25 +1,35 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const EventSchema = new mongoose.Schema({
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  title: { type: String, required: true, trim: true },
-  description: { type: String, trim: true },      // optional field
-  startTime: { type: Date, required: true },
-  endTime: { type: Date, required: true },
-  isAllDay: { type: Boolean, default: false },
-  subject: { type: String, trim: true },          // optional field
-  eventType: {
-    type: String,
-    enum: ['exam', 'assignment', 'lecture', 'study session', 'office hours', 'other'],
-    required: true
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const EventSchema = new mongoose.Schema(
+  {
+    user: { type: String, required: true, index: true },
+    title: { type: String, required: true, trim: true },
+    description: { type: String, default: "", trim: true },
+    date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ },
+    startTime: { type: String, required: true, match: TIME_PATTERN },
+    endTime: {
+      type: String,
+      default: "",
+      validate: {
+        validator(value) {
+          return !value || TIME_PATTERN.test(value);
+        },
+        message: "End time must be a valid 24-hour time.",
+      },
+    },
+    forLabel: { type: String, default: "Me", trim: true },
+    groupId: { type: String, default: null, index: true },
+    groupName: { type: String, default: null, trim: true },
+    location: { type: String, default: "", trim: true },
+    eventType: {
+      type: String,
+      enum: ["group", "study", "exam", "deadline"],
+      required: true,
+    },
   },
-}, { timestamps: true });
+  { timestamps: true },
+);
 
-// make sure end time is always after start time
-EventSchema.pre('save', async function () {
-  if (this.endTime <= this.startTime && !this.isAllDay) {
-    throw new Error('End time must be after start time.');
-  }
-});
-
-module.exports = mongoose.model('Event', EventSchema);
+module.exports = mongoose.model("Event", EventSchema);
