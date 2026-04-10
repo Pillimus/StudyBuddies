@@ -1,6 +1,6 @@
 import { useState } from 'react';
+import { FiBell, FiCalendar, FiMessageCircle, FiUsers } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
-import { BellIcon, CalendarSmIcon } from '../../../components/layout/Sidebar';
 import { useGroups } from '../../../context/GroupsContext';
 import { useEvents, TYPE_COLOR, TYPE_ICON } from '../../../context/EventContext';
 import { useUser } from '../../../context/UserContext';
@@ -49,6 +49,13 @@ export default function Dashboard() {
   const today = new Date().toISOString().slice(0, 10);
   const todoEvents = sorted.filter(e => e.date >= today && e.date <= in7);
 
+  function notificationIcon(type: string) {
+    const common = { size: 15, color: '#a78bfa' };
+    if (type === 'message') return <FiMessageCircle {...common} />;
+    if (type === 'group') return <FiUsers {...common} />;
+    return <FiBell {...common} />;
+  }
+
   return (
     <div className="dash-wrap">
       <div className="topbar">
@@ -60,14 +67,14 @@ export default function Dashboard() {
           <div className="notif-btn-wrap">
             <button className={`icon-btn ${showBell ? 'active-btn' : ''}`}
               onClick={() => { setShowBell(!showBell); setShowTodo(false); }} title="Notifications">
-              <BellIcon size={17}/>
+              <FiBell size={17} color="#dfe3ff" />
             </button>
             {MOCK_NOTIFICATIONS.length > 0 && <span className="notif-badge">{MOCK_NOTIFICATIONS.length}</span>}
           </div>
           <div className="notif-btn-wrap">
             <button className={`icon-btn ${showTodo ? 'active-btn' : ''}`}
               onClick={() => { setShowTodo(!showTodo); setShowBell(false); }} title="To-do list">
-              <CalendarSmIcon size={17}/>
+              <FiCalendar size={17} color="#dfe3ff" />
             </button>
             {todoEvents.length > 0 && <span className="notif-badge">{todoEvents.length}</span>}
           </div>
@@ -79,9 +86,7 @@ export default function Dashboard() {
           <div className="dropdown-header">Notifications</div>
           {MOCK_NOTIFICATIONS.map(n => (
             <div key={n.id} className="dropdown-item">
-              <span className="dropdown-icon">
-                {n.type === 'message' ? '◎' : n.type === 'group' ? '◈' : '◉'}
-              </span>
+              <span className="dropdown-icon">{notificationIcon(n.type)}</span>
               <div>
                 <div className="dropdown-text">{n.text}</div>
                 <div className="dropdown-time">{n.time}</div>

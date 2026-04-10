@@ -1,0 +1,68 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    ext {
+        buildToolsVersion = "33.0.0"
+        minSdkVersion = 21
+        compileSdkVersion = 33
+        targetSdkVersion = 33
+        kotlinVersion = "1.8.10"
+        appCompatVersion = "1.6.1"
+        androidxCoreVersion = "1.10.1"
+        activityVersion = "1.7.2"
+        fragmentVersion = "1.5.7"
+        transitionVersion = "1.4.1"
+        annotationExperimentalVersion = "1.3.1"
+        dynamicAnimationVersion = "1.0.0"
+
+        // We use NDK 23 which has both M1 support and is the side-by-side NDK version from AGP.
+        ndkVersion = "23.1.7779620"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")
+        classpath("com.android.tools.build:gradle")
+        classpath("com.facebook.react:react-native-gradle-plugin")
+    }
+}
+
+subprojects {
+    configurations.all {
+        resolutionStrategy {
+            force "androidx.appcompat:appcompat:${rootProject.ext.appCompatVersion}"
+            force "androidx.appcompat:appcompat-resources:${rootProject.ext.appCompatVersion}"
+            force "androidx.core:core:${rootProject.ext.androidxCoreVersion}"
+            force "androidx.core:core-ktx:${rootProject.ext.androidxCoreVersion}"
+            force "androidx.activity:activity:${rootProject.ext.activityVersion}"
+            force "androidx.activity:activity-ktx:${rootProject.ext.activityVersion}"
+            force "androidx.fragment:fragment:${rootProject.ext.fragmentVersion}"
+            force "androidx.fragment:fragment-ktx:${rootProject.ext.fragmentVersion}"
+            force "androidx.transition:transition:${rootProject.ext.transitionVersion}"
+            force "androidx.transition:transition-ktx:${rootProject.ext.transitionVersion}"
+            force "androidx.annotation:annotation-experimental:${rootProject.ext.annotationExperimentalVersion}"
+            force "androidx.dynamicanimation:dynamicanimation:${rootProject.ext.dynamicAnimationVersion}"
+        }
+    }
+
+    afterEvaluate { project ->
+        if (project.hasProperty("android")) {
+            project.android {
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_11
+                    targetCompatibility JavaVersion.VERSION_11
+                }
+            }
+        }
+
+        project.tasks.matching { it.class.name.contains("KotlinCompile") }.configureEach {
+            if (it.hasProperty("kotlinOptions")) {
+                it.kotlinOptions {
+                    jvmTarget = "11"
+                }
+            }
+        }
+    }
+}

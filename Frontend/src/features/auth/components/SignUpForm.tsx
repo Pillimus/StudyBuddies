@@ -1,6 +1,8 @@
 import React, { useState } from "react";
+import { FiLock, FiMail, FiUser } from "react-icons/fi";
 import { signup } from "../../../api/signup";
 import { googleLogin } from "../../../api/googleLogin";
+import PasswordToggleIcon from "./PasswordToggleIcon";
 type Props = {
   setPage: (page: "login" | "signup" | "forgot" | "reset") => void;
 };
@@ -62,7 +64,8 @@ const handleSubmit = async (e: React.FormEvent) => {
         {/* NAME */}
         <div style={{ marginBottom: "15px" }}>
           <label style={{ fontSize: "12px" }}>First Name</label>
-          <div style={{ borderBottom: "1px solid #aaa", paddingBottom: "6px" }}>
+          <div style={{ borderBottom: "1px solid #aaa", paddingBottom: "6px", display: "flex", alignItems: "center" }}>
+            <FiUser size={16} aria-hidden="true" style={{ marginRight: "10px", color: "#7c7cff" }} />
             <input
               type="text"
               placeholder="Enter your first name"
@@ -85,7 +88,8 @@ const handleSubmit = async (e: React.FormEvent) => {
         {/* LAST NAME */}
         <div style={{ marginBottom: "15px" }}>
           <label style={{ fontSize: "12px" }}>Last Name</label>
-          <div style={{ borderBottom: "1px solid #aaa", paddingBottom: "6px" }}>
+          <div style={{ borderBottom: "1px solid #aaa", paddingBottom: "6px", display: "flex", alignItems: "center" }}>
+            <FiUser size={16} aria-hidden="true" style={{ marginRight: "10px", color: "#7c7cff" }} />
             <input
               type="text"
               placeholder="Enter your last name"
@@ -108,7 +112,8 @@ const handleSubmit = async (e: React.FormEvent) => {
         {/* EMAIL */}
         <div style={{ marginBottom: "15px" }}>
           <label style={{ fontSize: "12px" }}>Email</label>
-          <div style={{ borderBottom: "1px solid #aaa", paddingBottom: "6px" }}>
+          <div style={{ borderBottom: "1px solid #aaa", paddingBottom: "6px", display: "flex", alignItems: "center" }}>
+            <FiMail size={16} aria-hidden="true" style={{ marginRight: "10px", color: "#7c7cff" }} />
             <input
               type="email"
               placeholder="Enter your email address"
@@ -132,6 +137,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         <div style={{ marginBottom: "15px" }}>
           <label style={{ fontSize: "12px" }}>Password</label>
           <div style={{ borderBottom: "1px solid #aaa", paddingBottom: "6px", display: "flex", alignItems: "center" }}>
+            <FiLock size={16} aria-hidden="true" style={{ marginRight: "10px", color: "#7c7cff" }} />
             <input
               type={showPassword ? "text" : "password"}
               placeholder="Enter your password"
@@ -157,12 +163,14 @@ const handleSubmit = async (e: React.FormEvent) => {
                 border: "none",
                 color: "#cfcfff",
                 cursor: "pointer",
-                fontSize: "16px",
                 marginLeft: "8px",
                 padding: 0,
-              }}
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              } as React.CSSProperties}
             >
-              {showPassword ? "Hide" : "Show"}
+              <PasswordToggleIcon visible={showPassword} />
             </button>
           </div>
         </div>
@@ -171,6 +179,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         <div style={{ marginBottom: "20px" }}>
           <label style={{ fontSize: "12px" }}>Confirm Password</label>
           <div style={{ borderBottom: "1px solid #aaa", paddingBottom: "6px", display: "flex", alignItems: "center" }}>
+            <FiLock size={16} aria-hidden="true" style={{ marginRight: "10px", color: "#7c7cff" }} />
             <input
               type={showConfirmPassword ? "text" : "password"}
               placeholder="Confirm your password"
@@ -196,12 +205,14 @@ const handleSubmit = async (e: React.FormEvent) => {
                 border: "none",
                 color: "#cfcfff",
                 cursor: "pointer",
-                fontSize: "16px",
                 marginLeft: "8px",
                 padding: 0,
-              }}
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              } as React.CSSProperties}
             >
-              {showConfirmPassword ? "Hide" : "Show"}
+              <PasswordToggleIcon visible={showConfirmPassword} />
             </button>
           </div>
         </div>
