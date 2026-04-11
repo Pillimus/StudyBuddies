@@ -1,0 +1,204 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { BellIcon, CalendarSmIcon } from '../../../components/layout/Sidebar';
+import { useEvents, TYPE_COLOR, TYPE_ICON } from '../../../context/EventContext';
+import { useUser } from '../../../context/UserContext';
+import { Avatar } from '../../../components/Avatar';
+import { MOCK_NOTIFICATIONS } from '../../../mock/mockData';
+import './Dashboard.css';
+
+function fmt12(t: string) {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+
+function dayLabel(dateStr: string): string {
+  const today    = new Date().toISOString().slice(0, 10);
+  const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })();
+  if (dateStr === today)    return 'Today';
+  if (dateStr === tomorrow) return 'Tomorrow';
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+}
+
+const NOTIF_ICON: Record<string, string> = { message: '◎', group: '◈', chat: '◉' };
+
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const { events, markDone } = useEvents();
+  const { profile } = useUser();
+
+  const [selectedEvent, setSelectedEvent] = useState<typeof events[0] | null>(null);
+  const [showBell, setShowBell] = useState(false);
+  const [showTodo, setShowTodo] = useState(false);
+
+  const ud = JSON.parse(localStorage.getItem('user') || '{}');
+  const firstName    = profile.displayName || ud.firstName || ud.email?.split('@')[0] || 'there';
+  const avatarLetter = firstName[0]?.toUpperCase() || 'U';
+
+  const sorted = [...events].sort((a, b) =>
+    a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime)
+  );
+
+  const grouped = new Map<string, typeof events>();
+  sorted.forEach(e => {
+    if (!grouped.has(e.date)) grouped.set(e.date, []);
+    grouped.get(e.date)!.push(e);
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const in7   = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().slice(0, 10); })();
+  const todoEvents = sorted.filter(e => e.date >= today && e.date <= in7);
+
+  return (
+    <div className="dash-wrap">
+      <div className="topbar">
+        <div className="topbar-left">
+          <Avatar letter={avatarLetter} color={profile.avatarColor} url={profile.avatarUrl} size={32} />
+          <h2 className="topbar-greeting">Hey, <span className="grad-name">{firstName}!</span></h2>
+        </div>
+        <div className="topbar-right">
+          <div className="badge-wrap">
+            <button
+              className={`icon-btn ${showBell ? 'active-btn' : ''}`}
+              onClick={() => { setShowBell(!showBell); setShowTodo(false); }}
+              title="Notifications"
+            >
+              <BellIcon size={17} />
+            </button>
+            {MOCK_NOTIFICATIONS.length > 0 && (
+              <span className="notif-badge">{MOCK_NOTIFICATIONS.length}</span>
+            )}
+          </div>
+          <div className="badge-wrap">
+            <button
+              className={`icon-btn ${showTodo ? 'active-btn' : ''}`}
+              onClick={() => { setShowTodo(!showTodo); setShowBell(false); }}
+              title="To-do list"
+            >
+              <CalendarSmIcon size={17} />
+            </button>
+            {todoEvents.length > 0 && (
+              <span className="notif-badge">{todoEvents.length}</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {showBell && (
+        <div className="dropdown-panel" onClick={() => setShowBell(false)}>
+          <div className="dropdown-header">Notifications</div>
+          {MOCK_NOTIFICATIONS.map(n => (
+            <div key={n.id} className="dropdown-item">
+              <span className="dropdown-icon">{NOTIF_ICON[n.type]}</span>
+              <div>
+                <div className="dropdown-text">{n.text}</div>
+                <div className="dropdown-time">{n.time}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showTodo && (
+        <div className="dropdown-panel" onClick={() => setShowTodo(false)}>
+          <div className="dropdown-header">This Week</div>
+          {todoEvents.length === 0 && (
+            <div className="dropdown-empty">Nothing due this week</div>
+          )}
+          {todoEvents.map(e => (
+            <div key={e.id} className="dropdown-item todo-item">
+              <span className="todo-icon" style={{ color: TYPE_COLOR[e.type] }}>{TYPE_ICON[e.type]}</span>
+              <div className="todo-info">
+                <div className="dropdown-text">{e.title}</div>
+                <div className="dropdown-time">{dayLabel(e.date)} · {fmt12(e.startTime)}</div>
+              </div>
+              <button className="done-chip" onClick={ev => { ev.stopPropagation(); markDone(e.id); }}>✓ Done</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="page-scroll">
+        <div className="stats-row">
+          {[
+            { num: events.length,                                                   label: 'Upcoming Events' },
+            { num: 4,                                                                label: 'Study Groups'    },
+            { num: MOCK_NOTIFICATIONS.filter(n => n.type === 'message').length,     label: 'Unread Messages' },
+            { num: todoEvents.length,                                                label: 'Due This Week'   },
+          ].map((s, i) => (
+            <div key={i} className="stat-card">
+              <div className="stat-num">{s.num}</div>
+              <div className="stat-label">{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="section-title">Upcoming Events</div>
+
+        <div className="events-list">
+          {grouped.size === 0 && (
+            <div className="empty-events">No upcoming events — add one from the Calendar.</div>
+          )}
+          {Array.from(grouped.entries()).map(([dateStr, evs]) => (
+            <div key={dateStr} className="day-group">
+              <div className="day-label">{dayLabel(dateStr)}</div>
+              {evs.map(event => (
+                <div key={event.id} className="event-row">
+                  <span className="event-type-icon" style={{ color: TYPE_COLOR[event.type] }}>
+                    {TYPE_ICON[event.type]}
+                  </span>
+                  <div className="event-info" onClick={() => setSelectedEvent(event)}>
+                    <div className="event-title">{event.title}</div>
+                    {event.for !== 'Me' && <div className="event-group">{event.for}</div>}
+                  </div>
+                  <div className="event-time">{fmt12(event.startTime)}</div>
+                  <button className="done-chip" onClick={() => markDone(event.id)}>✓ Done</button>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {selectedEvent && (
+        <div className="modal-overlay" onClick={() => setSelectedEvent(null)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title-row">
+                <span className="modal-event-icon" style={{ color: TYPE_COLOR[selectedEvent.type] }}>
+                  {TYPE_ICON[selectedEvent.type]}
+                </span>
+                <h3>{selectedEvent.title}</h3>
+              </div>
+              <button className="icon-btn" onClick={() => setSelectedEvent(null)}>✕</button>
+            </div>
+            <div className="event-detail-body">
+              {[
+                { label: 'Date',     value: dayLabel(selectedEvent.date) },
+                { label: 'Time',     value: fmt12(selectedEvent.startTime) + (selectedEvent.endTime ? ` – ${fmt12(selectedEvent.endTime)}` : '') },
+                ...(selectedEvent.for !== 'Me'   ? [{ label: 'For',      value: selectedEvent.for }]          : []),
+                ...(selectedEvent.location       ? [{ label: 'Location', value: selectedEvent.location }]     : []),
+                ...(selectedEvent.description    ? [{ label: 'Notes',    value: selectedEvent.description }]  : []),
+              ].map((r, i) => (
+                <div key={i} className="event-detail-row">
+                  <span className="detail-label">{r.label}</span>
+                  <span>{r.value}</span>
+                </div>
+              ))}
+            </div>
+            <div className="modal-footer">
+              <button className="btn-ghost teal-ghost" onClick={() => { markDone(selectedEvent.id); setSelectedEvent(null); }}>
+                ✓ Mark Done
+              </button>
+              <button className="btn-ghost" onClick={() => { setSelectedEvent(null); navigate('/calendar'); }}>
+                View in Calendar
+              </button>
+              <button className="btn-ghost" onClick={() => setSelectedEvent(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

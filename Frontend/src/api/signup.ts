@@ -1,5 +1,3 @@
-import { buildApiUrl } from "./config";
-
 export const signup = async (
   name: string,
   lastName: string,
@@ -7,7 +5,7 @@ export const signup = async (
   password: string,
 ) => {
   try {
-    const res = await fetch(buildApiUrl("/api/signup"), {
+    const res = await fetch("http://study-buddies.me/api/signup", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

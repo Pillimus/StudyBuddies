@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { buildApiUrl } from "../../../api/config";
 
 type Props = {
   setPage: (page: "login" | "signup" | "forgot" | "reset") => void;
@@ -18,7 +17,7 @@ const ForgotPasswordForm = ({ setPage }: Props) => {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch(buildApiUrl("/api/forgot-password"), {
+      const res = await fetch("http://localhost:5000/api/forgot-password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -1,0 +1,35 @@
+.files-container {
+  display: flex;
+  background: radial-gradient(circle at top, #1a1446, #050214);
+  min-height: 100vh;
+  color: white;
+  padding: 20px;
+  gap: 20px;
+}
+
+.files-content {
+  flex: 1;
+}
+
+.upload-btn {
+  margin: 15px 0;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: none;
+  background: #7c3aed;
+  color: white;
+  cursor: pointer;
+}
+
+.file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.file-card {
+  padding: 20px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+}
