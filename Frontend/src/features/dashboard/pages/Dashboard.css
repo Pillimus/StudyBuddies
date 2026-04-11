@@ -126,3 +126,13 @@
   .stats-row      { grid-template-columns: repeat(2,1fr); }
   .dropdown-panel { right: 16px; width: calc(100vw - 32px); }
 }
+
+.dropdown-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 199;
+}
+
+.dropdown-panel {
+  z-index: 200;
+}
