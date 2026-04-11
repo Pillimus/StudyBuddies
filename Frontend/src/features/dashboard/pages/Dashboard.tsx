@@ -55,13 +55,13 @@ export default function Dashboard() {
           <h2 className="topbar-title">Hey, <span className="grad-name">{firstName}!</span></h2>
         </div>
         <div className="topbar-right">
-          <div className="notif-btn-wrap">
+          {/*<div className="notif-btn-wrap">
             <button className={`icon-btn ${showBell ? 'active-btn' : ''}`}
               onClick={() => { setShowBell(!showBell); setShowTodo(false); }} title="Notifications">
               <BellIcon size={17}/>
             </button>
             {MOCK_NOTIFICATIONS.length > 0 && <span className="notif-badge">{MOCK_NOTIFICATIONS.length}</span>}
-          </div>
+          </div>*/}
           <div className="notif-btn-wrap">
             <button className={`icon-btn ${showTodo ? 'active-btn' : ''}`}
               onClick={() => { setShowTodo(!showTodo); setShowBell(false); }} title="To-do list">
@@ -72,7 +72,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {showBell && (
+      {/*showBell && (
         <div className="dropdown-panel" onClick={() => setShowBell(false)}>
           <div className="dropdown-header">Notifications</div>
           {MOCK_NOTIFICATIONS.map(n => (
@@ -86,12 +86,14 @@ export default function Dashboard() {
               </div>
             </div>
           ))}
-          <div className="dropdown-footer">WE HAVE A FOOTER HERE FOR SOME REASON IF WE NEED IT</div>
+          {<div className="dropdown-footer">WE HAVE A FOOTER HERE FOR SOME REASON IF WE NEED IT</div>}
         </div>
-      )}
+      )*/}
 
       {showTodo && (
-        <div className="dropdown-panel" onClick={() => setShowTodo(false)}>
+  <>
+    <div className="dropdown-backdrop" onClick={() => setShowTodo(false)} />
+    <div className="dropdown-panel">
           <div className="dropdown-header">This Week</div>
           {todoEvents.length === 0 && <div className="dropdown-empty">Nothing due this week</div>}
           {todoEvents.map(e => (
@@ -105,7 +107,8 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
-      )}
+  </>
+)}
 
       <div className="page-scroll">
         <div className="stats-row">
