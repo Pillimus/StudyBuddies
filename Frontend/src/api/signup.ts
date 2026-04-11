@@ -1,4 +1,5 @@
-<<<<<<< HEAD
+import { buildApiUrl } from "./config";
+
 export const signup = async (
   name: string,
   lastName: string,
