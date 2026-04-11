@@ -20,8 +20,6 @@ export interface Chat {
 
 export interface Member {
   username: string;
-  displayName?: string;
-  email?: string;
   isCreator?: boolean;
   color: string;
   avatarUrl?: string;
