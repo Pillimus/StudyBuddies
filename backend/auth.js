@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { jwtSecret: JWT_SECRET } = require("./config");
 
 function verifyToken(req, res, next) {
   const authHeader = req.header('Authorization');
@@ -8,7 +9,7 @@ function verifyToken(req, res, next) {
 
   const token = authHeader.split(' ')[1]; // remove the "Bearer" at the start
   try {
-    const decoded = jwt.verify(token, 'secretKey');
+    const decoded = jwt.verify(token, JWT_SECRET);
     req.user = { id: decoded.userId };
     next();
   } catch (error) {
