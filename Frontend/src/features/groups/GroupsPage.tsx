@@ -1,15 +1,28 @@
-import { useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar, AvatarUploadZone } from '../../components/Avatar';
-import { useUser, AVATAR_COLORS, randomColor } from '../../context/UserContext';
-import { INITIAL_GROUPS } from '../../mockData';
+import { useGroups } from '../../context/GroupsContext';
+import { useUser, randomColor } from '../../context/UserContext';
 import type { Group, Member } from '../../types';
+import {
+  addGroupMembers,
+  createGroup,
+  leaveGroup as leaveGroupRequest,
+  removeGroupMember,
+} from '../../api/groups';
 import './GroupsPage.css';
 
 const ME = 'you';
 
-function displayName(username: string, myDisplayName: string) {
-  return username === ME ? 'You' : `@${username}`;
+function displayName(member: Member) {
+  return member.username === ME ? 'You' : member.displayName || member.username;
+}
+
+function parseEmails(value: string) {
+  return value
+    .split(',')
+    .map(email => email.trim().toLowerCase())
+    .filter(Boolean);
 }
 
 function ChatWhite({ size = 14 }: { size?: number }) {
@@ -31,40 +44,91 @@ function ChatGrad({ size = 16 }: { size?: number }) {
 export default function GroupsPage() {
   const navigate = useNavigate();
   const { profile, updateProfile } = useUser();
+  const { groups, loadingGroups, groupsError, addGroup, updateGroup, removeGroupById } = useGroups();
+  const [selected, setSelected] = useState<Group | null>(null);
+  const [expanded, setExpanded] = useState({ members: true, events: true });
+  const [addInput, setAddInput] = useState('');
+  const [pageError, setPageError] = useState('');
 
-  const [groups,       setGroups]       = useState<Group[]>(INITIAL_GROUPS);
-  const [selected,     setSelected]     = useState<Group | null>(null);
-  const [expanded,     setExpanded]     = useState({ members: true, events: true });
-  const [addInput,     setAddInput]     = useState('');
-
-  const [showCreate,   setShowCreate]   = useState(false);
-  const [showProfile,  setShowProfile]  = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [showGroupPic, setShowGroupPic] = useState(false);
-  const [showLeave,    setShowLeave]    = useState(false);
-  const [showSearch,   setShowSearch]   = useState(false);
-
-  const [newName,      setNewName]      = useState('');
-  const [newMembers,   setNewMembers]   = useState('');
-  const [newColor]                      = useState(() => randomColor());
+  const [showLeave, setShowLeave] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newMembers, setNewMembers] = useState('');
+  const [newColor] = useState(() => randomColor());
   const [newAvatarUrl, setNewAvatarUrl] = useState<string | undefined>();
 
   const [editDisplayName, setEditDisplayName] = useState('');
-  const [editAvatarUrl,   setEditAvatarUrl]   = useState<string | undefined>();
-  const [editGroupUrl,    setEditGroupUrl]    = useState<string | undefined>();
+  const [editAvatarUrl, setEditAvatarUrl] = useState<string | undefined>();
+  const [editGroupUrl, setEditGroupUrl] = useState<string | undefined>();
 
   const [searchQ, setSearchQ] = useState('');
+  const [createMemberError, setCreateMemberError] = useState('');
+  const [addMemberError, setAddMemberError] = useState('');
+  const [profileSaveError, setProfileSaveError] = useState('');
+  const [isSavingCreate, setIsSavingCreate] = useState(false);
+  const [isSavingMembers, setIsSavingMembers] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
-  function toggle(key: 'members' | 'events') { setExpanded(e => ({ ...e, [key]: !e[key] })); }
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}') as {
+    id?: number | string;
+    email?: string;
+  };
+  const currentUserEmail = (currentUser.email || '').trim().toLowerCase();
+  const avatarLetter = (profile.displayName || 'U')[0].toUpperCase();
+
+  useEffect(() => {
+    setSelected(currentSelected => {
+      if (!currentSelected) return groups[0] || null;
+      return groups.find(group => group.id === currentSelected.id) || groups[0] || null;
+    });
+  }, [groups]);
+
+  useEffect(() => {
+    setPageError(groupsError);
+  }, [groupsError]);
+
+  function syncUpdatedGroup(updated: Group) {
+    updateGroup(updated);
+    setSelected(updated);
+  }
+
+  function toggle(key: 'members' | 'events') {
+    setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
+  }
 
   function openProfile() {
     setEditDisplayName(profile.displayName);
     setEditAvatarUrl(profile.avatarUrl || undefined);
+    setProfileSaveError('');
     setShowProfile(true);
   }
 
-  function saveProfile() {
-    updateProfile({ displayName: editDisplayName || profile.displayName, avatarUrl: editAvatarUrl || null });
-    setShowProfile(false);
+  function closeOnBackdrop(
+    event: MouseEvent<HTMLDivElement>,
+    onClose: () => void,
+  ) {
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
+  }
+
+  async function saveProfile() {
+    try {
+      setIsSavingProfile(true);
+      setPageError('');
+      setProfileSaveError('');
+      await updateProfile({ displayName: editDisplayName || profile.displayName, avatarUrl: editAvatarUrl || null });
+      setShowProfile(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to save profile.';
+      setProfileSaveError(message);
+      setPageError(message);
+    } finally {
+      setIsSavingProfile(false);
+    }
   }
 
   function openGroupPic() {
@@ -72,59 +136,100 @@ export default function GroupsPage() {
     setShowGroupPic(true);
   }
 
+  function resetCreateState() {
+    setShowCreate(false);
+    setCreateMemberError('');
+  }
+
   function saveGroupPic() {
     if (!selected) return;
     const updated = { ...selected, avatarUrl: editGroupUrl };
-    setGroups(prev => prev.map(g => g.id === selected.id ? updated : g));
-    setSelected(updated);
+    syncUpdatedGroup(updated);
     setShowGroupPic(false);
   }
 
-  //TODO: API
-  function handleCreate() {
+  async function handleCreate() {
     if (!newName.trim()) return;
-    const extras = newMembers.split(',').map(s => s.trim()).filter(Boolean);
-    const members: Member[] = [
-      { username: ME, isCreator: true, color: profile.avatarColor },
-      ...extras.map((u, i) => ({ username: u, color: AVATAR_COLORS[(i + 1) % AVATAR_COLORS.length] })),
-    ];
-    setGroups(prev => [...prev, { id: Date.now(), name: newName.trim(), createdBy: ME, color: newColor, avatarUrl: newAvatarUrl, members, events: [] }]);
-    setShowCreate(false); setNewName(''); setNewMembers('');
+
+    try {
+      setIsSavingCreate(true);
+      setCreateMemberError('');
+      const createdGroup = await createGroup({
+        name: newName.trim(),
+        color: newColor,
+        avatarUrl: newAvatarUrl,
+        memberEmails: parseEmails(newMembers),
+      });
+      addGroup(createdGroup);
+      setSelected(createdGroup);
+      resetCreateState();
+      setNewName('');
+      setNewMembers('');
+      setNewAvatarUrl(undefined);
+    } catch (error) {
+      setCreateMemberError(error instanceof Error ? error.message : 'Unable to create group.');
+    } finally {
+      setIsSavingCreate(false);
+    }
   }
 
-  //TODO: API
-  function addMember(username: string) {
-    if (!selected || !username.trim()) return;
-    const u = username.trim();
-    if (selected.members.find(m => m.username === u)) return;
-    const updated = { ...selected, members: [...selected.members, { username: u, color: AVATAR_COLORS[selected.members.length % AVATAR_COLORS.length] }] };
-    setGroups(prev => prev.map(g => g.id === selected.id ? updated : g));
-    setSelected(updated); setAddInput('');
+  async function addMember(emailList: string) {
+    if (!selected || !emailList.trim()) return;
+
+    try {
+      setIsSavingMembers(true);
+      setAddMemberError('');
+      const updatedGroup = await addGroupMembers(selected.id, parseEmails(emailList));
+      syncUpdatedGroup(updatedGroup);
+      setAddInput('');
+    } catch (error) {
+      setAddMemberError(error instanceof Error ? error.message : 'Unable to add members.');
+    } finally {
+      setIsSavingMembers(false);
+    }
   }
 
-  //TODO: API
-  function removeMember(username: string) {
+  async function removeMember(member: Member) {
+    if (!selected || !member.email) return;
+
+    try {
+      setAddMemberError('');
+      const updatedGroup = await removeGroupMember(selected.id, member.email);
+      syncUpdatedGroup(updatedGroup);
+    } catch (error) {
+      setAddMemberError(error instanceof Error ? error.message : 'Unable to remove member.');
+    }
+  }
+
+  async function leaveSelectedGroup() {
     if (!selected) return;
-    const updated = { ...selected, members: selected.members.filter(m => m.username !== username) };
-    setGroups(prev => prev.map(g => g.id === selected.id ? updated : g));
-    setSelected(updated);
+
+    try {
+      setIsLeaving(true);
+      await leaveGroupRequest(selected.id);
+      const nextGroups = groups.filter(group => group.id !== selected.id);
+      removeGroupById(selected.id);
+      setSelected(nextGroups[0] || null);
+      setShowLeave(false);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : 'Unable to leave group.');
+    } finally {
+      setIsLeaving(false);
+    }
   }
 
-  //TODO: API
-  //Also remove user from the affiliated group chat when they leave
-  function leaveGroup() {
-    if (!selected) return;
-    setGroups(prev => prev.filter(g => g.id !== selected.id));
-    setSelected(null); setShowLeave(false);
-  }
-
-  const isCreator    = selected?.createdBy === ME;
-  const avatarLetter = (profile.displayName || 'U')[0].toUpperCase();
-
+  const isCreator = Boolean(
+    selected?.members.some(member => member.isCreator && member.email?.toLowerCase() === currentUserEmail),
+  );
   const filteredGroups = searchQ
-    ? groups.filter(g =>
-        g.name.toLowerCase().includes(searchQ.toLowerCase()) ||
-        g.members.some(m => m.username.toLowerCase().includes(searchQ.toLowerCase()))
+    ? groups.filter(group =>
+        group.name.toLowerCase().includes(searchQ.toLowerCase()) ||
+        group.members.some(
+          member =>
+            member.username.toLowerCase().includes(searchQ.toLowerCase()) ||
+            member.displayName?.toLowerCase().includes(searchQ.toLowerCase()) ||
+            member.email?.toLowerCase().includes(searchQ.toLowerCase()),
+        ),
       )
     : groups;
 
@@ -133,50 +238,54 @@ export default function GroupsPage() {
       <div className="topbar">
         <div className="topbar-left"><h2>My Groups</h2></div>
         <div className="topbar-right">
-          {/*<button className="icon-btn" title="Search" onClick={() => setShowSearch(!showSearch)}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <circle cx="11" cy="11" r="8" stroke="url(#sg)" strokeWidth="1.8"/>
-              <path d="M21 21l-4.35-4.35" stroke="url(#sg)" strokeWidth="1.8" strokeLinecap="round"/>
-            </svg>
-          </button>*/}
-          <button className="btn-ghost btn-profile" onClick={openProfile}>
+          <button type="button" className="btn-ghost btn-profile" onClick={e => { e.stopPropagation(); openProfile(); }}>
             <Avatar letter={avatarLetter} color={profile.avatarColor} url={profile.avatarUrl} size={22}/>
             Profile
           </button>
-          <button className="btn-primary" onClick={() => setShowCreate(true)}>＋ New Group</button>
+          <button type="button" className="btn-primary" onClick={e => { e.stopPropagation(); setShowCreate(true); }}>+ New Group</button>
         </div>
       </div>
 
-      {showSearch && (
-        <div className="search-bar-row">
-          <input className="search-input-field" autoFocus placeholder="Search groups or members..."
-            value={searchQ} onChange={e => setSearchQ(e.target.value)}/>
-          <button className="icon-btn" onClick={() => { setShowSearch(false); setSearchQ(''); }}>✕</button>
-        </div>
-      )}
+      {pageError && <div className="member-input-error groups-page-error">{pageError}</div>}
 
       <div className="groups-body">
         <div className="groups-list">
           <div className="section-title">All Groups</div>
-          {filteredGroups.map(g => (
-            <div key={g.id} className={`group-row ${selected?.id === g.id ? 'active' : ''}`}
-              onClick={() => { setSelected(g); setExpanded({ members: true, events: true }); setAddInput(''); }}>
-              <Avatar letter={g.name[0]} color={g.color} url={g.avatarUrl} size={36} square/>
+          {loadingGroups && <div className="groups-no-results">Loading groups...</div>}
+          {!loadingGroups && filteredGroups.map(group => (
+            <div
+              key={group.id}
+              className={`group-row ${selected?.id === group.id ? 'active' : ''}`}
+              onClick={() => {
+                setSelected(group);
+                setExpanded({ members: true, events: true });
+                setAddInput('');
+                setAddMemberError('');
+              }}
+            >
+              <Avatar letter={group.name[0]} color={group.color} url={group.avatarUrl} size={36} square/>
               <div className="group-row-info">
-                <div className="group-row-name">{g.name}</div>
-                <div className="group-row-sub">{g.members.length} members · {g.events.length} events</div>
+                <div className="group-row-name">{group.name}</div>
+                <div className="group-row-sub">{group.members.length} members · {group.events.length} events</div>
               </div>
             </div>
           ))}
-          {filteredGroups.length === 0 && <div className="groups-no-results">No results</div>}
+          {!loadingGroups && filteredGroups.length === 0 && <div className="groups-no-results">No results</div>}
         </div>
 
         <div className={`group-detail ${selected ? 'visible' : ''}`}>
           {selected ? (
             <>
               <div className="group-detail-header">
-                <Avatar letter={selected.name[0]} color={selected.color} url={selected.avatarUrl}
-                  size={50} square editable={isCreator} onEdit={openGroupPic}/>
+                <Avatar
+                  letter={selected.name[0]}
+                  color={selected.color}
+                  url={selected.avatarUrl}
+                  size={50}
+                  square
+                  editable={isCreator}
+                  onEdit={openGroupPic}
+                />
                 <div className="group-header-info">
                   <div className="group-detail-name">{selected.name}</div>
                   <div className="group-detail-sub">{selected.members.length} members</div>
@@ -189,40 +298,53 @@ export default function GroupsPage() {
 
               <div className="collapsible">
                 <button className="collapsible-header" onClick={() => toggle('members')}>
-                  <span>Members</span><span className="collapse-arrow">{expanded.members ? '▲' : '▼'}</span>
+                  <span>Members</span>
+                  <span className="collapse-arrow">{expanded.members ? '▲' : '▼'}</span>
                 </button>
                 {expanded.members && (
                   <div className="collapsible-body scrollable">
-                    {selected.members.map(m => (
-                      <div key={m.username} className="member-row">
+                    {selected.members.map(member => (
+                      <div key={member.email || member.username} className="member-row">
                         <Avatar
-                          letter={m.username === ME ? avatarLetter : m.username[0].toUpperCase()}
-                          color={m.username === ME ? profile.avatarColor : m.color}
-                          url={m.username === ME ? profile.avatarUrl : undefined}
+                          letter={member.username === ME ? avatarLetter : member.username[0].toUpperCase()}
+                          color={member.email === currentUserEmail ? profile.avatarColor : member.color}
+                          url={member.email === currentUserEmail ? profile.avatarUrl : member.avatarUrl}
                           size={28}
                         />
                         <div className="member-info">
-                          <div className="member-name">{displayName(m.username, profile.displayName)}</div>
-                          {m.isCreator && <div className="member-badge">creator</div>}
+                          <div className="member-name">{member.email === currentUserEmail ? 'You' : displayName(member)}</div>
+                          {member.email && <div className="member-email">{member.email}</div>}
+                          {member.isCreator && <div className="member-badge">creator</div>}
                         </div>
                         <div className="member-actions">
-                          {m.username !== ME && (
+                          {member.email !== currentUserEmail && (
                             <button className="icon-btn" title="Message" onClick={() => navigate('/chats')}><ChatGrad/></button>
                           )}
-                          {isCreator && m.username !== ME && (
-                            <button className="icon-btn danger-btn" title="Remove" onClick={() => removeMember(m.username)}>✕</button>
+                          {isCreator && member.email !== currentUserEmail && (
+                            <button className="icon-btn danger-btn" title="Remove" onClick={() => void removeMember(member)}>x</button>
                           )}
                         </div>
                       </div>
                     ))}
                     {isCreator && (
-                      <div className="add-member-row">
-                        <input placeholder="Add by username..." value={addInput}
-                          onChange={e => setAddInput(e.target.value)}
-                          onKeyDown={e => e.key === 'Enter' && addMember(addInput)}
-                          className="add-member-input"/>
-                        <button className="btn-ghost btn-add-member" onClick={() => addMember(addInput)}>Add</button>
-                      </div>
+                      <>
+                        <div className="add-member-row">
+                          <input
+                            placeholder="Add by account email(s)..."
+                            value={addInput}
+                            onChange={e => {
+                              setAddInput(e.target.value);
+                              setAddMemberError('');
+                            }}
+                            onKeyDown={e => e.key === 'Enter' && void addMember(addInput)}
+                            className="add-member-input"
+                          />
+                          <button className="btn-ghost btn-add-member" disabled={isSavingMembers} onClick={() => void addMember(addInput)}>
+                            {isSavingMembers ? 'Adding...' : 'Add'}
+                          </button>
+                        </div>
+                        {addMemberError && <div className="member-input-error">{addMemberError}</div>}
+                      </>
                     )}
                   </div>
                 )}
@@ -230,105 +352,129 @@ export default function GroupsPage() {
 
               <div className="collapsible">
                 <button className="collapsible-header" onClick={() => toggle('events')}>
-                  <span>Upcoming Events</span><span className="collapse-arrow">{expanded.events ? '▲' : '▼'}</span>
+                  <span>Upcoming Events</span>
+                  <span className="collapse-arrow">{expanded.events ? '▲' : '▼'}</span>
                 </button>
                 {expanded.events && (
                   <div className="collapsible-body scrollable">
                     {selected.events.length === 0 && <div className="group-events-empty">No events yet</div>}
-                    {selected.events.map((ev, i) => (
-                      <div key={i} className="group-event-row" onClick={() => navigate('/calendar')}>
-                        <div className="group-event-title">{ev.title}</div>
-                        <div className="group-event-meta">{ev.date} · {ev.time}</div>
+                    {selected.events.map((event, index) => (
+                      <div key={index} className="group-event-row" onClick={() => navigate('/calendar')}>
+                        <div className="group-event-title">{event.title}</div>
+                        <div className="group-event-meta">{event.date} · {event.time}</div>
                       </div>
                     ))}
-                    <button className="btn-ghost btn-create-event" onClick={() => navigate('/calendar')}>＋ Create Event</button>
+                    <button className="btn-ghost btn-create-event" onClick={() => navigate('/calendar')}>+ Create Event</button>
                   </div>
                 )}
               </div>
             </>
           ) : (
-            <div className="detail-empty">Select a group to view details</div>
+            <div className="detail-empty">{loadingGroups ? 'Loading your groups...' : 'Select a group to view details'}</div>
           )}
         </div>
       </div>
 
       {showProfile && (
-        <div className="modal-overlay" onClick={() => setShowProfile(false)}>
+        <div className="modal-overlay" onClick={e => closeOnBackdrop(e, () => setShowProfile(false))}>
           <div className="modal-box" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Edit Profile</h3>
-              <button className="icon-btn" onClick={() => setShowProfile(false)}>✕</button>
+              <button type="button" className="icon-btn" onClick={() => setShowProfile(false)}>x</button>
             </div>
-            <AvatarUploadZone currentUrl={editAvatarUrl} currentColor={profile.avatarColor}
-              letter={avatarLetter} size={88} onFile={setEditAvatarUrl} label="Visible to all group members"/>
+            <AvatarUploadZone
+              currentUrl={editAvatarUrl}
+              currentColor={profile.avatarColor}
+              letter={avatarLetter}
+              size={88}
+              onFile={url => {
+                setProfileSaveError('');
+                setEditAvatarUrl(url);
+              }}
+              onError={setProfileSaveError}
+              label="Visible to all group members"
+            />
             <div className="field field-mt">
               <label>Display Name</label>
               <input value={editDisplayName} onChange={e => setEditDisplayName(e.target.value)} placeholder="Your display name"/>
             </div>
+            {profileSaveError && <div className="member-input-error">{profileSaveError}</div>}
             <div className="modal-footer">
-              <button className="btn-ghost" onClick={() => setShowProfile(false)}>Cancel</button>
-              <button className="btn-primary" onClick={saveProfile}>Save</button>
+              <button type="button" className="btn-ghost" onClick={() => setShowProfile(false)}>Cancel</button>
+              <button type="button" className="btn-primary" disabled={isSavingProfile} onClick={() => void saveProfile()}>
+                {isSavingProfile ? 'Saving...' : 'Save'}
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {showGroupPic && selected && (
-        <div className="modal-overlay" onClick={() => setShowGroupPic(false)}>
+        <div className="modal-overlay" onClick={e => closeOnBackdrop(e, () => setShowGroupPic(false))}>
           <div className="modal-box" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Edit Group Photo</h3>
-              <button className="icon-btn" onClick={() => setShowGroupPic(false)}>✕</button>
+              <button type="button" className="icon-btn" onClick={() => setShowGroupPic(false)}>x</button>
             </div>
-            <AvatarUploadZone currentUrl={editGroupUrl} currentColor={selected.color}
-              letter={selected.name[0]} size={88} onFile={setEditGroupUrl}/>
+            <AvatarUploadZone currentUrl={editGroupUrl} currentColor={selected.color} letter={selected.name[0]} size={88} onFile={setEditGroupUrl}/>
             <div className="modal-footer">
-              <button className="btn-ghost" onClick={() => setShowGroupPic(false)}>Cancel</button>
-              <button className="btn-primary" onClick={saveGroupPic}>Save</button>
+              <button type="button" className="btn-ghost" onClick={() => setShowGroupPic(false)}>Cancel</button>
+              <button type="button" className="btn-primary" onClick={saveGroupPic}>Save</button>
             </div>
           </div>
         </div>
       )}
 
       {showLeave && selected && (
-        <div className="modal-overlay" onClick={() => setShowLeave(false)}>
+        <div className="modal-overlay" onClick={e => closeOnBackdrop(e, () => setShowLeave(false))}>
           <div className="modal-box" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Leave Group</h3>
-              <button className="icon-btn" onClick={() => setShowLeave(false)}>✕</button>
+              <button type="button" className="icon-btn" onClick={() => setShowLeave(false)}>x</button>
             </div>
             <p className="leave-modal-text">
               Are you sure you want to leave <strong className="leave-modal-strong">{selected.name}</strong>?
               You will also be removed from the affiliated group chat.
             </p>
             <div className="modal-footer">
-              <button className="btn-ghost" onClick={() => setShowLeave(false)}>Cancel</button>
-              <button className="btn-ghost danger-ghost" onClick={leaveGroup}>Leave Group</button>
+              <button type="button" className="btn-ghost" onClick={() => setShowLeave(false)}>Cancel</button>
+              <button type="button" className="btn-ghost danger-ghost" disabled={isLeaving} onClick={() => void leaveSelectedGroup()}>
+                {isLeaving ? 'Leaving...' : 'Leave Group'}
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {showCreate && (
-        <div className="modal-overlay" onClick={() => setShowCreate(false)}>
+        <div className="modal-overlay" onClick={e => closeOnBackdrop(e, resetCreateState)}>
           <div className="modal-box" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Create Group</h3>
-              <button className="icon-btn" onClick={() => setShowCreate(false)}>✕</button>
+              <button type="button" className="icon-btn" onClick={resetCreateState}>x</button>
             </div>
-            <AvatarUploadZone currentUrl={newAvatarUrl} currentColor={newColor}
-              letter={newName ? newName[0] : '?'} size={72} onFile={setNewAvatarUrl}/>
+            <AvatarUploadZone currentUrl={newAvatarUrl} currentColor={newColor} letter={newName ? newName[0] : '?'} size={72} onFile={setNewAvatarUrl}/>
             <div className="field field-mt">
               <label>Group Name *</label>
               <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="" autoFocus/>
             </div>
             <div className="field">
-              <label>Add Members (usernames, comma separated)</label>
-              <input value={newMembers} onChange={e => setNewMembers(e.target.value)} placeholder=""/>
+              <label>Add Members (account emails, comma separated)</label>
+              <input
+                value={newMembers}
+                onChange={e => {
+                  setNewMembers(e.target.value);
+                  setCreateMemberError('');
+                }}
+                placeholder="friend1@email.com, friend2@email.com"
+              />
             </div>
+            {createMemberError && <div className="member-input-error">{createMemberError}</div>}
             <div className="modal-footer">
-              <button className="btn-ghost" onClick={() => setShowCreate(false)}>Cancel</button>
-              <button className="btn-primary" onClick={handleCreate}>Create Group</button>
+              <button type="button" className="btn-ghost" onClick={resetCreateState}>Cancel</button>
+              <button type="button" className="btn-primary" disabled={isSavingCreate} onClick={() => void handleCreate()}>
+                {isSavingCreate ? 'Creating...' : 'Create Group'}
+              </button>
             </div>
           </div>
         </div>
