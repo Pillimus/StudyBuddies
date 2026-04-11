@@ -1,24 +1,28 @@
 export interface Message {
   id: number;
   sender: string;
+  senderDisplayName?: string;
   text: string;
   time: string;
   mine: boolean;
+  createdAt?: string;
 }
 
 export interface Chat {
   id: number;
   name: string;
+  type?: 'direct' | 'group';
   isGroup: boolean;
-  isStudyGroup: boolean;
   createdBy: string;
-  members: string[];
+  members: Member[];
   color: string;
   messages: Message[];
   lastMsg: string;
+  updatedAt?: string;
 }
 
 export interface Member {
+  userId?: number | string;
   username: string;
   displayName?: string;
   email?: string;

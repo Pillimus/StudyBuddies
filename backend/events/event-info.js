@@ -29,7 +29,7 @@ const EventSchema = new mongoose.Schema(
       required: true,
     },
   },
-  { timestamps: true },
+  { timestamps: true, collection: "CEvents" },
 );
 
 module.exports = mongoose.model("Event", EventSchema);

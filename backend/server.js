@@ -1,5 +1,6 @@
 const express = require("express");
 const app = express();
+const { createServer } = require("http");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
@@ -9,11 +10,26 @@ const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
 const MongoClient = require("mongodb").MongoClient;
+const { Server } = require("socket.io");
 const config = require("./config");
+const {
+  buildDirectRoomName,
+  buildGroupRoomName,
+  buildUserRoomName,
+  createMessagesRouter,
+  syncProfileInChats,
+} = require("./message");
 
 const url = config.mongodbUri;
 
 const client = new MongoClient(url);
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
 
 const notesRoutesPath = path.join(__dirname, "uploadFiles", "notes");
 const eventsRoutesPath = path.join(__dirname, "events", "event-operations");
@@ -44,6 +60,22 @@ if (!fs.existsSync(uploadsDir)) {
 const frontendUrl = config.frontendUrl;
 const apiBaseUrl = config.apiBaseUrl;
 const JWT_SECRET = config.jwtSecret;
+
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization",
+  );
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  );
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -94,6 +126,45 @@ function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
+function normalizeUsername(username) {
+  return String(username || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, "");
+}
+
+function buildUsernameFallback(account) {
+  const displayNameUsername = normalizeUsername(account.DisplayName);
+  if (displayNameUsername) {
+    return displayNameUsername;
+  }
+
+  const nameUsername = normalizeUsername([account.FirstName, account.LastName].filter(Boolean).join(""));
+  if (nameUsername) {
+    return nameUsername;
+  }
+
+  const emailUsername = normalizeUsername(normalizeEmail(account.Email).split("@")[0]);
+  return emailUsername || `user${String(account.UserID || "").replace(/\D/g, "") || Date.now()}`;
+}
+
+function buildAccountUsername(account) {
+  return String(account.Username || "").trim() || buildUsernameFallback(account);
+}
+
+async function generateUniqueUsername(db, accountLike) {
+  const baseUsername = normalizeUsername(buildUsernameFallback(accountLike)) || `user${Date.now()}`;
+  let candidate = baseUsername;
+  let suffix = 1;
+
+  while (await db.collection("Accounts").findOne({ UsernameNormalized: candidate })) {
+    candidate = `${baseUsername}${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
+}
+
 function htmlToText(html) {
   return String(html || "")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -140,7 +211,7 @@ function buildDisplayName(account) {
 function buildMemberFromAccount(account, overrides = {}) {
   return {
     userId: account.UserID,
-    username: buildDisplayName(account),
+    username: buildAccountUsername(account),
     displayName: buildDisplayName(account),
     email: normalizeEmail(account.Email),
     isCreator: Boolean(overrides.isCreator),
@@ -161,10 +232,38 @@ function buildUserResponse(account, extra = {}) {
   return {
     id: account.UserID,
     email: account.Email,
+    username: buildAccountUsername(account),
     firstName: account.FirstName || "",
     lastName: account.LastName || "",
     ...buildUserProfile(account),
     ...extra,
+  };
+}
+
+async function ensureStoredUsername(db, account) {
+  if (!account) {
+    return account;
+  }
+
+  const normalizedUsername = normalizeUsername(account.Username || account.UsernameNormalized || buildUsernameFallback(account));
+  if (account.UsernameNormalized === normalizedUsername && account.Username === normalizedUsername) {
+    return account;
+  }
+
+  await db.collection("Accounts").updateOne(
+    { _id: account._id },
+    {
+      $set: {
+        Username: normalizedUsername,
+        UsernameNormalized: normalizedUsername,
+      },
+    },
+  );
+
+  return {
+    ...account,
+    Username: normalizedUsername,
+    UsernameNormalized: normalizedUsername,
   };
 }
 
@@ -184,12 +283,14 @@ async function findAccountByIdentity(db, { userId, email }) {
     return null;
   }
 
-  return db.collection("Accounts").findOne({ $or: clauses });
+  const account = await db.collection("Accounts").findOne({ $or: clauses });
+  return ensureStoredUsername(db, account);
 }
 
 async function syncProfileInGroups(db, account) {
   const normalizedEmail = normalizeEmail(account.Email);
   const nextDisplayName = buildDisplayName(account);
+  const nextUsername = buildAccountUsername(account);
 
   await db.collection("Groups").updateMany(
     {
@@ -205,7 +306,7 @@ async function syncProfileInGroups(db, account) {
     },
     {
       $set: {
-        "Members.$[member].username": nextDisplayName,
+        "Members.$[member].username": nextUsername,
         "Members.$[member].displayName": nextDisplayName,
         "Members.$[member].avatarUrl": account.AvatarUrl || undefined,
         "Members.$[member].color": account.AvatarColor || "#5b8dee",
@@ -231,9 +332,11 @@ async function findAccountsByEmails(db, emails) {
     return [];
   }
 
-  return db.collection("Accounts").find({
+  const accounts = await db.collection("Accounts").find({
     $or: normalizedEmails.map(email => buildEmailQuery(email)),
   }).toArray();
+
+  return Promise.all(accounts.map(account => ensureStoredUsername(db, account)));
 }
 
 function buildGroupLookup(userId, email) {
@@ -250,6 +353,44 @@ function buildGroupLookup(userId, email) {
 
   return clauses.length > 0 ? { $or: clauses } : null;
 }
+
+app.use("/api", createMessagesRouter(client, {
+  normalizeEmail,
+  normalizeUsername,
+  escapeRegex,
+  buildAccountUsername,
+  buildDisplayName,
+  buildMemberFromAccount,
+  findAccountByIdentity,
+  ensureStoredUsername,
+}, io));
+
+io.on("connection", (socket) => {
+  socket.on("chat:identify", ({ userId }) => {
+    if (!userId) return;
+    socket.join(buildUserRoomName(userId));
+  });
+
+  socket.on("chat:join", ({ chatId, type }) => {
+    if (!chatId || !type) return;
+    if (type === "group") {
+      socket.join(buildGroupRoomName(chatId));
+      return;
+    }
+
+    socket.join(buildDirectRoomName(chatId));
+  });
+
+  socket.on("chat:leave", ({ chatId, type }) => {
+    if (!chatId || !type) return;
+    if (type === "group") {
+      socket.leave(buildGroupRoomName(chatId));
+      return;
+    }
+
+    socket.leave(buildDirectRoomName(chatId));
+  });
+});
 
 app.post("/api/sync-google-user", async (req, res) => {
   const { email, firstName, lastName, supabaseId } = req.body;
@@ -313,22 +454,6 @@ app.post("/api/sync-google-user", async (req, res) => {
   } catch (error) {
     return res.status(500).json({ error: "Unable to sync Google user." });
   }
-});
-
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization",
-  );
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  );
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-  next();
 });
 
 app.post("/api/addTask", async (req, res, next) => {
@@ -460,10 +585,20 @@ app.post("/api/signup", async (req, res, next) => {
     } else {
       const hashedPassword = await bcrypt.hash(password, 10);
       const verifyToken = Math.random().toString(36).substring(2);
+      const userId = Math.floor(Math.random() * 1000000);
+      const normalizedUsername = await generateUniqueUsername(db, {
+        UserID: userId,
+        Email: normalizedEmail,
+        FirstName: name,
+        LastName: lastName || "",
+        DisplayName: "",
+      });
 
       const newUser = {
-        UserID: Math.floor(Math.random() * 1000000),
+        UserID: userId,
         Email: normalizedEmail,
+        Username: normalizedUsername,
+        UsernameNormalized: normalizedUsername,
         Password: hashedPassword,
         FirstName: name,
         LastName: lastName || "",
@@ -492,7 +627,14 @@ app.post("/api/signup", async (req, res, next) => {
     error = e.toString();
   }
 
-  res.status(200).json({ error: error });
+  if (error) {
+    return res.status(200).json({ error });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Verify your email first.",
+  });
 });
 
 app.get("/api/verify/:token", async (req, res) => {
@@ -556,8 +698,13 @@ app.put("/api/profile", async (req, res) => {
       },
     );
 
-    const updatedUser = await db.collection("Accounts").findOne({ _id: user._id });
+    const updatedUser = await ensureStoredUsername(db, await db.collection("Accounts").findOne({ _id: user._id }));
     await syncProfileInGroups(db, updatedUser);
+    await syncProfileInChats(db, updatedUser, {
+      normalizeEmail,
+      buildDisplayName,
+      buildAccountUsername,
+    });
 
     return res.status(200).json(buildUserResponse(updatedUser));
   } catch (error) {
@@ -657,29 +804,6 @@ app.post("/api/reset-password", async (req, res) => {
   } catch (err) {
     return res.status(500).json({ error: "Unable to reset password." });
   }
-});
-
-app.post("/api/searchTasks", async (req, res, next) => {
-  // incoming: userId, search
-  // outgoing: results[], error
-  var error = "";
-  const { search } = req.body;
-  var _search = search.trim();
-  const db = client.db("Users");
-  const results = await db
-    .collection("Tasks")
-    .find({ Task: { $regex: _search + ".*", $options: "i" } })
-    .toArray();
-  var _ret = [];
-  for (var i = 0; i < results.length; i++) {
-    _ret.push(results[i].Task);
-  }
-  var ret = { results: _ret, error: error };
-  for (var i = 0; i < results.length; i++) {
-    _ret.push(results[i].Task);
-  }
-  var ret = { results: _ret, error: error };
-  res.status(200).json(ret);
 });
 
 app.get("/api/groups", async (req, res) => {
@@ -936,6 +1060,6 @@ app.get("/test-token", (req, res) => {
   res.json({ token });
 });
 
-app.listen(config.port, () => {
+httpServer.listen(config.port, () => {
   console.log(`Server listening on port ${config.port}`);
 });

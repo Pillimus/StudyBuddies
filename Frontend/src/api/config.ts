@@ -10,4 +10,5 @@ export function buildApiUrl(path: string) {
   return `${normalizedBaseUrl}${normalizedPath}`;
 }
 
+export { apiBaseUrl };
 export const appUrl = import.meta.env.VITE_APP_URL?.trim();

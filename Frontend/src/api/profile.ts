@@ -10,6 +10,7 @@ type ProfileIdentity = {
 export type SavedProfile = {
   id: number | string;
   email: string;
+  username: string;
   firstName: string;
   lastName: string;
   displayName: string;

@@ -1,5 +1,4 @@
 import { useEffect, useState, type MouseEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Avatar, AvatarUploadZone } from '../../components/Avatar';
 import { useGroups } from '../../context/GroupsContext';
 import { useUser, randomColor } from '../../context/UserContext';
@@ -25,24 +24,7 @@ function parseEmails(value: string) {
     .filter(Boolean);
 }
 
-function ChatWhite({ size = 14 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
-    </svg>
-  );
-}
-
-function ChatGrad({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="url(#sg)" strokeWidth="1.8" strokeLinejoin="round"/>
-    </svg>
-  );
-}
-
 export default function GroupsPage() {
-  const navigate = useNavigate();
   const { profile, updateProfile } = useUser();
   const { groups, loadingGroups, groupsError, addGroup, updateGroup, removeGroupById } = useGroups();
   const [selected, setSelected] = useState<Group | null>(null);
@@ -272,7 +254,6 @@ export default function GroupsPage() {
                   <div className="group-detail-sub">{selected.members.length} members</div>
                 </div>
                 <div className="group-header-actions">
-                  <button className="btn-primary" onClick={() => navigate('/chats')}><ChatWhite size={13}/> Message</button>
                   <button className="btn-ghost danger-ghost" onClick={() => setShowLeave(true)}>Leave</button>
                 </div>
               </div>
@@ -298,9 +279,6 @@ export default function GroupsPage() {
                           {member.isCreator && <div className="member-badge">creator</div>}
                         </div>
                         <div className="member-actions">
-                          {member.email !== currentUserEmail && (
-                            <button className="icon-btn" title="Message" onClick={() => navigate('/chats')}><ChatGrad/></button>
-                          )}
                           {isCreator && member.email !== currentUserEmail && (
                             <button className="icon-btn danger-btn" title="Remove" onClick={() => void removeMember(member)}>x</button>
                           )}

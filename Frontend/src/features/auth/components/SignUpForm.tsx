@@ -12,12 +12,14 @@ const SignupForm = ({ setPage }: Props) => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"error" | "success">("error");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
 const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
   setMessage("");
+  setMessageType("error");
 
   if (!name || !lastName || !email || !password || !confirmPassword) {
     setMessage("Please fill in all fields");
@@ -36,7 +38,8 @@ const handleSubmit = async (e: React.FormEvent) => {
     return;
   }
 
-  setMessage("Signup successful. Please verify your email before logging in.");
+  setMessageType("success");
+  setMessage(data.message || "Verify your email first.");
   setTimeout(() => setPage("login"), 1500);
 };
 
@@ -116,6 +119,7 @@ const handleSubmit = async (e: React.FormEvent) => {
               onChange={(e) => {
                 setEmail(e.target.value);
                 setMessage("");
+                setMessageType("error");
               }}
               style={{
                 background: "transparent",
@@ -139,6 +143,7 @@ const handleSubmit = async (e: React.FormEvent) => {
               onChange={(e) => {
                 setPassword(e.target.value);
                 setMessage("");
+                setMessageType("error");
               }}
               style={{
                 background: "transparent",
@@ -178,6 +183,7 @@ const handleSubmit = async (e: React.FormEvent) => {
               onChange={(e) => {
                 setConfirmPassword(e.target.value);
                 setMessage("");
+                setMessageType("error");
               }}
               style={{
                 background: "transparent",
@@ -223,7 +229,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           Sign up
         </button>
         {message ? (
-          <div style={{ color: "#ff4d4f", fontSize: "13px", marginTop: "12px" }}>
+          <div style={{ color: messageType === "success" ? "#7CFFB2" : "#ff4d4f", fontSize: "13px", marginTop: "12px" }}>
             {message}
           </div>
         ) : null}

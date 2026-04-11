@@ -18,8 +18,12 @@ export const INITIAL_EVENTS: AppEvent[] = [
 //TODO: Replace with API
 export const INITIAL_CHATS: Chat[] = [
   {
-    id: 1, name: 'COP 4331', isGroup: true, isStudyGroup: true, createdBy: 'penis head', color: '#7c5cfc',
-    members: ['penis head', 'asas', 'f'],
+    id: 1, name: 'COP 4331', type: 'group', isGroup: true, createdBy: '1', color: '#7c5cfc',
+    members: [
+      { userId: 1, username: 'penishead', displayName: 'Penis Head', color: '#7c5cfc' },
+      { userId: 2, username: 'asas', displayName: 'Asas', color: '#3a7bd5' },
+      { userId: 3, username: 'f', displayName: 'F', color: '#2dd4d4' },
+    ],
     lastMsg: 'test3',
     messages: [
       { id: 1, sender: 'penis head', text: 'test1',  time: '2:10 PM', mine: false },
@@ -28,8 +32,11 @@ export const INITIAL_CHATS: Chat[] = [
     ],
   },
   {
-    id: 2, name: 'penis head', isGroup: false, isStudyGroup: false, createdBy: 'you', color: '#3a7bd5',
-    members: ['penis head'],
+    id: 2, name: 'penis head', type: 'direct', isGroup: false, createdBy: '1', color: '#3a7bd5',
+    members: [
+      { userId: 1, username: 'you', displayName: 'You', color: '#5b8dee' },
+      { userId: 2, username: 'penishead', displayName: 'Penis Head', color: '#3a7bd5' },
+    ],
     lastMsg: 'oh ok :(',
     messages: [
       { id: 1, sender: 'penis head', text: 'Hey can you send the notes from today?', time: '1:30 PM', mine: false },

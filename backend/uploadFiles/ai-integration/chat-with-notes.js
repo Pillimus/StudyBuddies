@@ -2,6 +2,9 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const MAX_CONTEXT_CHARS = 30000;
 const MAX_NOTE_CHARS = 12000;
+const GEMINI_MODEL = "gemini-2.5-flash";
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 1200;
 
 function getGeminiClient() {
   const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
@@ -41,6 +44,72 @@ function buildNotesContext(notes) {
   return sections.join("\n\n---\n\n");
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getErrorStatusCode(error) {
+  return Number(
+    error?.statusCode ||
+    error?.status ||
+    error?.response?.status ||
+    error?.cause?.status ||
+    0
+  );
+}
+
+function isRetryableGeminiError(error) {
+  const statusCode = getErrorStatusCode(error);
+  const message = String(error?.message || "").toLowerCase();
+
+  return (
+    statusCode === 429 ||
+    statusCode === 500 ||
+    statusCode === 502 ||
+    statusCode === 503 ||
+    statusCode === 504 ||
+    message.includes("high demand") ||
+    message.includes("service unavailable") ||
+    message.includes("temporarily unavailable")
+  );
+}
+
+function buildUserFacingGeminiError(error) {
+  const statusCode = getErrorStatusCode(error);
+
+  if (statusCode === 429 || statusCode === 503 || isRetryableGeminiError(error)) {
+    const friendlyError = new Error(
+      "AI is busy right now. Please try again in a few moments."
+    );
+    friendlyError.statusCode = 503;
+    return friendlyError;
+  }
+
+  const fallbackError = new Error("Unable to chat with notes right now.");
+  fallbackError.statusCode = statusCode || 500;
+  return fallbackError;
+}
+
+async function generateContentWithRetry(model, prompt) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+    try {
+      const result = await model.generateContent(prompt);
+      return result.response.text();
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableGeminiError(error) || attempt === MAX_RETRIES) {
+        break;
+      }
+
+      await sleep(RETRY_DELAY_MS * (attempt + 1));
+    }
+  }
+
+  throw buildUserFacingGeminiError(lastError);
+}
+
 async function chatWithNotes({ notes, prompt }) {
   const cleanPrompt = String(prompt || "").trim();
   if (!cleanPrompt) {
@@ -63,9 +132,9 @@ async function chatWithNotes({ notes, prompt }) {
   }
 
   const client = getGeminiClient();
-  const model = client.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = client.getGenerativeModel({ model: GEMINI_MODEL });
 
-  const result = await model.generateContent(`
+  return generateContentWithRetry(model, `
 You are StudyBuddies' note assistant. Answer the user's question using the uploaded note context below.
 
 Rules:
@@ -80,8 +149,6 @@ ${cleanPrompt}
 Uploaded note context:
 ${notesContext}
   `);
-
-  return result.response.text();
 }
 
 module.exports = chatWithNotes;
