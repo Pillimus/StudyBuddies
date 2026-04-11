@@ -29,9 +29,9 @@ function fakeClientWithUser(userDoc) {
 test("GET /api/me returns user projection", async () => {
   const userDoc = {
     _id: new ObjectId("507f1f77bcf86cd799439011"),
-    firstName: "Alice",
-    lastName: "Lee",
-    email: "a@x.com",
+    firstName: "bobby",
+    lastName: "tables",
+    email: "bobby@tables.com",
     isVerified: true,
     google: { connected: true, accountId: "g123" },
     friends: [new ObjectId("507f1f77bcf86cd799439099")],
