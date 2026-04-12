@@ -4,8 +4,8 @@ import AppBackground from '../components/AppBackground';
 import MobileHeader from '../components/MobileHeader';
 import { useData } from '../contexts/DataContext';
 import type { FileItem } from '../types';
+import { launchImageLibrary } from 'react-native-image-picker';
 
-const FILTERS = ['All Files', 'COP 4331', 'Personal'];
 const READABLE = ['pdf', 'docx', 'doc', 'txt'];
 const FILE_ICONS: Record<string, string> = {
   pdf: '📄',
@@ -20,7 +20,7 @@ interface AiMsg {
 }
 
 export default function FilesScreen() {
-  const { files, addFile, removeFile } = useData();
+  const { files, groups, addFile, removeFile } = useData();
   const [activeFilter, setActiveFilter] = useState('All Files');
   const [contextFiles, setContextFiles] = useState<string[]>([]);
   const [showUpload, setShowUpload] = useState(false);
@@ -28,11 +28,14 @@ export default function FilesScreen() {
   const [readFile, setReadFile] = useState<FileItem | null>(null);
   const [shareInput, setShareInput] = useState('');
   const [uploadForm, setUploadForm] = useState({ name: '', group: 'Personal' });
+  const [selectedUploadName, setSelectedUploadName] = useState('');
   const [aiOpen, setAiOpen] = useState(true);
   const [aiInput, setAiInput] = useState('');
   const [aiMsgs, setAiMsgs] = useState<AiMsg[]>([
     { role: 'ai', text: 'Click ✦ on any file to add it to context, then type a prompt to the AI' },
   ]);
+
+  const availableFilters = useMemo(() => ['All Files', ...groups.map(group => group.name), 'Personal'], [groups]);
 
   const filteredFiles = useMemo(() => {
     if (activeFilter === 'All Files') return files;
@@ -41,18 +44,19 @@ export default function FilesScreen() {
   }, [activeFilter, files]);
 
   const handleUpload = () => {
-    if (!uploadForm.name.trim()) return;
+    if (!selectedUploadName.trim()) return;
 
-    const ext = uploadForm.name.split('.').pop() || 'txt';
+    const ext = selectedUploadName.split('.').pop() || 'txt';
     addFile({
-      name: uploadForm.name.trim(),
+      name: selectedUploadName.trim(),
       type: ext,
       size: '—',
       group: uploadForm.group === 'Personal' ? null : uploadForm.group,
-      content: `Preview for ${uploadForm.name.trim()} will appear here.`,
+      content: `Preview for ${selectedUploadName.trim()} will appear here.`,
     });
 
     setUploadForm({ name: '', group: 'Personal' });
+    setSelectedUploadName('');
     setShowUpload(false);
   };
 
@@ -85,7 +89,7 @@ export default function FilesScreen() {
 
         <ScrollView contentContainerStyle={styles.content}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-            {FILTERS.map(filter => (
+            {availableFilters.map(filter => (
               <TouchableOpacity
                 key={filter}
                 style={[styles.filterChip, activeFilter === filter && styles.filterChipActive]}
@@ -203,17 +207,31 @@ export default function FilesScreen() {
           <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowUpload(false)}>
             <TouchableOpacity activeOpacity={1} style={styles.modalCard}>
               <Text style={styles.modalTitle}>Upload File</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="File name"
-                placeholderTextColor="#66709a"
-                value={uploadForm.name}
-                onChangeText={value => setUploadForm(prev => ({ ...prev, name: value }))}
-                autoFocus
-              />
+              <TouchableOpacity
+                style={styles.uploadDropZone}
+                activeOpacity={0.85}
+                onPress={() => {
+                  launchImageLibrary(
+                    { mediaType: 'photo', selectionLimit: 1, quality: 0.8 },
+                    response => {
+                      const picked = response.assets?.[0];
+                      if (picked?.fileName) {
+                        setSelectedUploadName(picked.fileName);
+                      } else if (picked?.uri) {
+                        setSelectedUploadName(`upload-${Date.now()}.jpg`);
+                      }
+                    },
+                  );
+                }}
+              >
+                <Text style={styles.uploadDropTitle}>Upload</Text>
+                <Text style={styles.uploadDropText}>Click to select a file</Text>
+                <Text style={styles.uploadDropSub}>PDF, DOC, DOCX, TXT supported</Text>
+              </TouchableOpacity>
+              {selectedUploadName ? <Text style={styles.selectedFileName}>{selectedUploadName}</Text> : null}
               <Text style={styles.modalLabel}>Associate with Group</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.groupSelectRow}>
-                {FILTERS.slice(1).map(group => (
+                {['Personal', ...groups.map(group => group.name)].map(group => (
                   <TouchableOpacity
                     key={group}
                     style={[styles.groupSelectChip, uploadForm.group === group && styles.groupSelectChipActive]}
@@ -449,6 +467,22 @@ const styles = StyleSheet.create({
     padding: 18,
   },
   modalTitle: { color: '#fff', fontSize: 22, fontWeight: '800', marginBottom: 14 },
+  uploadDropZone: {
+    borderRadius: 18,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#6f68f8',
+    backgroundColor: 'rgba(111,104,248,0.13)',
+    minHeight: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 12,
+  },
+  uploadDropTitle: { color: '#c9cff3', fontSize: 54, lineHeight: 58, fontWeight: '300' },
+  uploadDropText: { color: '#c0c7ef', fontSize: 16, marginTop: 6 },
+  uploadDropSub: { color: '#7079a8', fontSize: 12, marginTop: 8 },
+  selectedFileName: { color: '#b3bcf0', marginBottom: 8 },
   modalInput: {
     minHeight: 48,
     borderRadius: 14,

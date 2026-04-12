@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import AppBackground from '../components/AppBackground';
-import { GoogleIcon } from '../components/AppSvgIcons';
 import AuthField from '../components/AuthField';
 import BrandMark from '../components/BrandMark';
+import GoogleLogo from '../components/GoogleLogo';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function SignUpScreen({ navigation }: any) {
@@ -33,6 +33,16 @@ export default function SignUpScreen({ navigation }: any) {
       setMessage('Account created. Check your email to verify, then sign in.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to create account.');
+    }
+  };
+
+  const handleGoogle = async () => {
+    setError('');
+    setMessage('');
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to sign up with Google.');
     }
   };
 
@@ -74,19 +84,9 @@ export default function SignUpScreen({ navigation }: any) {
               <Text style={styles.buttonText}>{isLoading ? 'Sign up...' : 'Sign up'}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.googleWrap}
-              activeOpacity={0.85}
-              onPress={async () => {
-                try {
-                  setError('');
-                  await signInWithGoogle();
-                } catch (e) {
-                  setError(e instanceof Error ? e.message : 'Google sign-in is unavailable.');
-                }
-              }}
-            >
-              <GoogleIcon size={30} />
+            <Text style={styles.orText}>or continue with</Text>
+            <TouchableOpacity style={styles.googleButton} onPress={handleGoogle} disabled={isLoading}>
+              <GoogleLogo size={30} />
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -121,13 +121,13 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', fontWeight: '500', fontSize: 16 },
   error: { color: '#f87171', marginTop: 4, textAlign: 'center' },
   message: { color: '#9fe870', marginTop: 4, textAlign: 'center', lineHeight: 20 },
-  googleWrap: {
+  orText: { color: '#6f75a3', textAlign: 'center', marginTop: 20, marginBottom: 10, fontSize: 16 },
+  googleButton: {
     alignSelf: 'center',
-    marginTop: 18,
-    width: 46,
-    height: 46,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 23,
   },
 });

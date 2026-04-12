@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import AppBackground from '../components/AppBackground';
-import { BellIcon, CalendarSmallIcon, MessageCircleIcon } from '../components/AppSvgIcons';
+import { CalendarSmallIcon } from '../components/AppSvgIcons';
 import MobileHeader from '../components/MobileHeader';
 import { useData } from '../contexts/DataContext';
-import { MOCK_NOTIFICATIONS } from '../data/mockData';
 import type { AppEvent } from '../types';
 
 function eventTypeSymbol(type: string) {
@@ -39,12 +38,6 @@ function eventTypeColor(type: string) {
   }
 }
 
-function notificationSymbol(type: string) {
-  if (type === 'message') return <MessageCircleIcon size={15} color="#a78bfa" />;
-  if (type === 'group') return eventTypeSymbol('group');
-  return <BellIcon size={15} color="#a78bfa" />;
-}
-
 function formatTime(time: string) {
   const [hours, minutes] = time.split(':').map(Number);
   const suffix = hours >= 12 ? 'PM' : 'AM';
@@ -68,17 +61,15 @@ function dayLabel(date: string) {
 }
 
 function HeaderBadge({
-  kind,
   count,
   onPress,
 }: {
-  kind: 'bell' | 'calendar';
   count: number;
   onPress: () => void;
 }) {
   return (
     <TouchableOpacity style={styles.headerBadge} onPress={onPress} activeOpacity={0.85}>
-      {kind === 'bell' ? <BellIcon size={18} gradient /> : <CalendarSmallIcon size={18} gradient />}
+      <CalendarSmallIcon size={18} gradient />
       {count > 0 ? (
         <View style={styles.headerBadgeDot}>
           <Text style={styles.headerBadgeCount}>{count}</Text>
@@ -141,7 +132,6 @@ function EventDetailModal({
 
 export default function DashboardScreen() {
   const { events, groups, chats, markEventDone } = useData();
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showTodos, setShowTodos] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<AppEvent | null>(null);
 
@@ -173,51 +163,11 @@ export default function DashboardScreen() {
         <MobileHeader
           title="Dashboard"
           rightContent={
-            <>
-              <HeaderBadge
-                kind="bell"
-                count={MOCK_NOTIFICATIONS.length}
-                onPress={() => {
-                  setShowNotifications(value => !value);
-                  setShowTodos(false);
-                }}
-              />
-              <HeaderBadge
-                kind="calendar"
-                count={todoEvents.length}
-                onPress={() => {
-                  setShowTodos(value => !value);
-                  setShowNotifications(false);
-                }}
-              />
-            </>
+            <HeaderBadge count={todoEvents.length} onPress={() => setShowTodos(value => !value)} />
           }
         />
 
         <ScrollView contentContainerStyle={styles.content}>
-          {showNotifications ? (
-            <View style={styles.panel}>
-              <Text style={styles.panelTitle}>Notifications</Text>
-              {MOCK_NOTIFICATIONS.map(notification => (
-                <View key={notification.id} style={styles.panelItem}>
-                  <View style={styles.panelItemRow}>
-                    <View style={styles.panelItemIcon}>
-                      {typeof notificationSymbol(notification.type) === 'string' ? (
-                        <Text style={styles.panelItemIconText}>{notificationSymbol(notification.type)}</Text>
-                      ) : (
-                        notificationSymbol(notification.type)
-                      )}
-                    </View>
-                    <View style={styles.panelItemContent}>
-                      <Text style={styles.panelItemText}>{notification.text}</Text>
-                      <Text style={styles.panelItemTime}>{notification.time}</Text>
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : null}
-
           {showTodos ? (
             <View style={styles.panel}>
               <Text style={styles.panelTitle}>This Week</Text>

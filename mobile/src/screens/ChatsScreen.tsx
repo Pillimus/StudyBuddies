@@ -5,31 +5,40 @@ import MobileHeader from '../components/MobileHeader';
 import { useData } from '../contexts/DataContext';
 
 const AVATAR_COLORS = ['#3a7bd5', '#7c5cfc', '#2dd4d4', '#e05c7a', '#f0a050', '#3ecf8e', '#a78bfa', '#5b8dee'];
+type ChatTab = 'direct' | 'group';
 
 export default function ChatsScreen() {
-  const { chats, addChatMessage, createChat, updateChat, removeChat } = useData();
-  const [activeChatId, setActiveChatId] = useState<number | null>(chats[0]?.id ?? null);
+  const { chats, groups, addChatMessage, createChat, updateChat, removeChat } = useData();
+  const [activeTab, setActiveTab] = useState<ChatTab>('direct');
+  const [activeChatId, setActiveChatId] = useState<number | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [showNew, setShowNew] = useState(false);
-  const [newUsers, setNewUsers] = useState('');
-  const [chatName, setChatName] = useState('');
-  const [newColor, setNewColor] = useState(AVATAR_COLORS[0]);
+  const [composeTab, setComposeTab] = useState<ChatTab>('direct');
+  const [newEmail, setNewEmail] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [showGroupDropdown, setShowGroupDropdown] = useState(false);
+  const [newColor] = useState(AVATAR_COLORS[0]);
   const [showInfo, setShowInfo] = useState(false);
   const [showEditColor, setShowEditColor] = useState(false);
   const [editColor, setEditColor] = useState(AVATAR_COLORS[0]);
   const [addInput, setAddInput] = useState('');
   const [showLeave, setShowLeave] = useState(false);
 
+  const visibleChats = useMemo(
+    () => chats.filter(chat => (activeTab === 'direct' ? !chat.isGroup : chat.isGroup)),
+    [activeTab, chats],
+  );
+
   const activeChat = useMemo(
-    () => chats.find(chat => chat.id === activeChatId) ?? chats[0] ?? null,
-    [activeChatId, chats],
+    () => visibleChats.find(chat => chat.id === activeChatId) ?? visibleChats[0] ?? null,
+    [activeChatId, visibleChats],
   );
 
   useEffect(() => {
-    if (!chats.some(chat => chat.id === activeChatId)) {
-      setActiveChatId(chats[0]?.id ?? null);
+    if (!visibleChats.some(chat => chat.id === activeChatId)) {
+      setActiveChatId(visibleChats[0]?.id ?? null);
     }
-  }, [chats, activeChatId]);
+  }, [visibleChats, activeChatId]);
 
   const sendMessage = () => {
     if (!activeChat || !messageInput.trim()) return;
@@ -49,30 +58,68 @@ export default function ChatsScreen() {
   };
 
   const createNewChat = () => {
-    const users = newUsers
-      .split(',')
-      .map(item => item.trim())
-      .filter(Boolean);
+    if (composeTab === 'direct') {
+      const email = newEmail.trim().toLowerCase();
+      if (!email) return;
 
-    if (!users.length) return;
+      const existingDm = chats.find(chat => !chat.isGroup && chat.members.some(member => member.toLowerCase() === email));
+      if (existingDm) {
+        setActiveTab('direct');
+        setActiveChatId(existingDm.id);
+        setShowNew(false);
+        setNewEmail('');
+        return;
+      }
 
-    const isGroup = users.length > 1;
+      const label = email.includes('@') ? email.split('@')[0] : email;
+
+      const nextChat = createChat({
+        name: label,
+        isGroup: false,
+        isStudyGroup: false,
+        createdBy: 'you',
+        members: [email],
+        color: newColor,
+        messages: [],
+        lastMsg: '',
+      });
+
+      setActiveChatId(nextChat.id);
+      setShowNew(false);
+      setNewEmail('');
+      return;
+    }
+
+    if (!selectedGroupId) return;
+    const selectedGroup = groups.find(group => group.id === selectedGroupId);
+    if (!selectedGroup) return;
+
+    const existingGroupChat = chats.find(
+      chat => chat.isGroup && chat.isStudyGroup && chat.name.toLowerCase() === selectedGroup.name.toLowerCase(),
+    );
+    if (existingGroupChat) {
+      setActiveTab('group');
+      setActiveChatId(existingGroupChat.id);
+      setShowNew(false);
+      setSelectedGroupId(null);
+      return;
+    }
+
     const nextChat = createChat({
-      name: isGroup ? (chatName.trim() || users.join(', ')) : users[0],
-      isGroup,
-      isStudyGroup: false,
+      name: selectedGroup.name,
+      isGroup: true,
+      isStudyGroup: true,
       createdBy: 'you',
-      members: users,
-      color: newColor,
+      members: selectedGroup.members.map(member => member.username),
+      color: selectedGroup.color,
       messages: [],
       lastMsg: '',
     });
 
+    setActiveTab('group');
     setActiveChatId(nextChat.id);
     setShowNew(false);
-    setNewUsers('');
-    setChatName('');
-    setNewColor(AVATAR_COLORS[0]);
+    setSelectedGroupId(null);
   };
 
   const addMember = () => {
@@ -115,7 +162,24 @@ export default function ChatsScreen() {
         />
 
         <ScrollView contentContainerStyle={styles.content}>
-          {chats.map(chat => (
+          <View style={styles.chatTabs}>
+            <TouchableOpacity
+              style={[styles.chatTab, activeTab === 'direct' && styles.chatTabActive]}
+              onPress={() => setActiveTab('direct')}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.chatTabText, activeTab === 'direct' && styles.chatTabTextActive]}>Direct</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.chatTab, activeTab === 'group' && styles.chatTabActive]}
+              onPress={() => setActiveTab('group')}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.chatTabText, activeTab === 'group' && styles.chatTabTextActive]}>Group</Text>
+            </TouchableOpacity>
+          </View>
+
+          {visibleChats.map(chat => (
             <TouchableOpacity
               key={chat.id}
               style={[styles.chatRow, activeChat?.id === chat.id && styles.chatRowActive]}
@@ -235,7 +299,9 @@ export default function ChatsScreen() {
               ))}
             </View>
           ) : (
-            <Text style={styles.emptyState}>No chats yet. Start one with the + button.</Text>
+            <Text style={styles.emptyState}>
+              No {activeTab === 'direct' ? 'direct messages' : 'group messages'} yet.
+            </Text>
           )}
         </ScrollView>
 
@@ -257,42 +323,85 @@ export default function ChatsScreen() {
         <Modal visible={showNew} transparent animationType="fade">
           <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowNew(false)}>
             <TouchableOpacity activeOpacity={1} style={styles.modalCard}>
-              <Text style={styles.modalTitle}>New Message</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Add people (usernames, comma separated)"
-                placeholderTextColor="#66709a"
-                value={newUsers}
-                onChangeText={setNewUsers}
-                autoFocus
-              />
-              {newUsers.split(',').filter(item => item.trim()).length > 1 ? (
+              <View style={styles.newMessageHeader}>
+                <Text style={styles.modalTitle}>New Message</Text>
+                <TouchableOpacity style={styles.closeModalButton} onPress={() => setShowNew(false)}>
+                  <Text style={styles.closeModalButtonText}>x</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.newMessageTabs}>
+                <TouchableOpacity
+                  style={[styles.newMessageTab, composeTab === 'direct' && styles.newMessageTabActive]}
+                  onPress={() => setComposeTab('direct')}
+                >
+                  <Text style={[styles.newMessageTabText, composeTab === 'direct' && styles.newMessageTabTextActive]}>Direct</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.newMessageTab, composeTab === 'group' && styles.newMessageTabActive]}
+                  onPress={() => setComposeTab('group')}
+                >
+                  <Text style={[styles.newMessageTabText, composeTab === 'group' && styles.newMessageTabTextActive]}>Group</Text>
+                </TouchableOpacity>
+              </View>
+
+              {composeTab === 'direct' ? (
                 <>
+                  <Text style={styles.modalSectionLabel}>ADD BY EMAIL</Text>
                   <TextInput
                     style={styles.modalInput}
-                    placeholder="Chat name (optional)"
+                    placeholder="Search by email..."
                     placeholderTextColor="#66709a"
-                    value={chatName}
-                    onChangeText={setChatName}
+                    value={newEmail}
+                    onChangeText={setNewEmail}
+                    autoFocus
                   />
-                  <View style={styles.colorRow}>
-                    {AVATAR_COLORS.map(color => (
-                      <TouchableOpacity
-                        key={color}
-                        style={[styles.colorSwatch, { backgroundColor: color }, newColor === color && styles.colorSwatchActive]}
-                        activeOpacity={0.85}
-                        onPress={() => setNewColor(color)}
-                      />
-                    ))}
+                </>
+              ) : (
+                <>
+                  <Text style={styles.modalSectionLabel}>CHOOSE ONE OF YOUR GROUPS</Text>
+                  <View style={styles.groupPicker}>
+                    <TouchableOpacity
+                      style={styles.groupDropdown}
+                      activeOpacity={0.85}
+                      onPress={() => setShowGroupDropdown(value => !value)}
+                    >
+                      <Text style={styles.groupDropdownText}>
+                        {selectedGroupId
+                          ? groups.find(group => group.id === selectedGroupId)?.name || 'Select a group'
+                          : 'Select a group'}
+                      </Text>
+                      <Text style={styles.groupDropdownArrow}>{showGroupDropdown ? '▴' : '▾'}</Text>
+                    </TouchableOpacity>
+
+                    {showGroupDropdown ? (
+                      <View style={styles.groupDropdownList}>
+                        {groups.map(group => (
+                          <TouchableOpacity
+                            key={group.id}
+                            style={[styles.groupPickerItem, selectedGroupId === group.id && styles.groupPickerItemActive]}
+                            onPress={() => {
+                              setSelectedGroupId(group.id);
+                              setShowGroupDropdown(false);
+                            }}
+                          >
+                            <Text style={[styles.groupPickerItemText, selectedGroupId === group.id && styles.groupPickerItemTextActive]}>
+                              {group.name}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    ) : null}
                   </View>
                 </>
-              ) : null}
+              )}
+
               <View style={styles.modalActions}>
                 <TouchableOpacity style={styles.modalGhostButton} activeOpacity={0.85} onPress={() => setShowNew(false)}>
                   <Text style={styles.modalGhostText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.modalButton} activeOpacity={0.85} onPress={createNewChat}>
-                  <Text style={styles.modalButtonText}>Start Chat</Text>
+                  <Text style={styles.modalButtonText}>{composeTab === 'direct' ? 'Start DM' : 'Open Group'}</Text>
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
@@ -365,6 +474,31 @@ export default function ChatsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { paddingBottom: 120 },
+  chatTabs: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#171a36',
+  },
+  chatTab: {
+    flex: 1,
+    minHeight: 36,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#2b2f59',
+    backgroundColor: 'rgba(19, 20, 45, 0.82)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatTabActive: {
+    backgroundColor: '#6f68f8',
+    borderColor: '#6f68f8',
+  },
+  chatTabText: { color: '#8f94be', fontSize: 15, fontWeight: '600' },
+  chatTabTextActive: { color: '#fff' },
   plusButton: {
     width: 40,
     height: 40,
@@ -540,6 +674,70 @@ const styles = StyleSheet.create({
     padding: 18,
   },
   modalTitle: { color: '#fff', fontSize: 22, fontWeight: '800', marginBottom: 14 },
+  newMessageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  closeModalButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#2a2d57',
+    backgroundColor: '#161a39',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  closeModalButtonText: { color: '#8f94be', fontSize: 20, fontWeight: '600' },
+  newMessageTabs: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  newMessageTab: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#2b2f59',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#121530',
+  },
+  newMessageTabActive: { backgroundColor: '#6f68f8', borderColor: '#6f68f8' },
+  newMessageTabText: { color: '#7781b5', fontSize: 18, fontWeight: '500' },
+  newMessageTabTextActive: { color: '#fff' },
+  modalSectionLabel: { color: '#5b6598', fontSize: 12, letterSpacing: 2, fontWeight: '700', marginBottom: 8 },
+  groupPicker: { marginBottom: 10 },
+  groupDropdown: {
+    minHeight: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2a2d57',
+    backgroundColor: '#161a39',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexDirection: 'row',
+    paddingHorizontal: 14,
+  },
+  groupDropdownText: { color: '#d2d8f6', fontSize: 18 },
+  groupDropdownArrow: { color: '#a5aedf', fontSize: 18 },
+  groupDropdownList: {
+    marginTop: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2a2d57',
+    backgroundColor: '#161a39',
+    overflow: 'hidden',
+  },
+  groupPickerItem: {
+    minHeight: 46,
+    borderBottomWidth: 1,
+    borderBottomColor: '#242955',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  groupPickerItemActive: { borderColor: '#6f68f8' },
+  groupPickerItemText: { color: '#b8c0eb', fontSize: 16 },
+  groupPickerItemTextActive: { color: '#fff' },
   modalInput: {
     minHeight: 48,
     borderRadius: 14,

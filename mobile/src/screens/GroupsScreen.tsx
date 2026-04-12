@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import AppBackground from '../components/AppBackground';
 import MobileHeader from '../components/MobileHeader';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
+import { launchImageLibrary } from 'react-native-image-picker';
 
 const AVATAR_COLORS = ['#5b8dee', '#7c5cfc', '#2dd4d4', '#e05c7a', '#f0a050', '#3ecf8e'];
 
@@ -24,6 +25,7 @@ export default function GroupsScreen() {
   const [newName, setNewName] = useState('');
   const [newMembers, setNewMembers] = useState('');
   const [displayName, setDisplayName] = useState(user?.displayName || '');
+  const [editAvatarUrl, setEditAvatarUrl] = useState<string | null>(null);
   const [createError, setCreateError] = useState('');
 
   useEffect(() => {
@@ -78,14 +80,14 @@ export default function GroupsScreen() {
 
   const saveProfile = () => {
     const nextName = displayName.trim() || 'User';
-    updateProfileName(nextName);
+    updateProfileName(nextName, editAvatarUrl);
     const selectedMine = selected?.members.find(member => member.username === 'you' || member.username === 'me');
     if (selected && selectedMine) {
       updateGroup({
         ...selected,
         members: selected.members.map(member =>
           member.username === 'you' || member.username === 'me'
-            ? { ...member, displayName: nextName }
+            ? { ...member, displayName: nextName, avatarUrl: editAvatarUrl || member.avatarUrl }
             : member,
         ),
       });
@@ -103,11 +105,16 @@ export default function GroupsScreen() {
             activeOpacity={0.85}
             onPress={() => {
               setDisplayName(user?.displayName || '');
+              setEditAvatarUrl(user?.avatarUrl || null);
               setShowProfile(true);
             }}
           >
             <View style={styles.profileAvatar}>
-              <Text style={styles.profileAvatarText}>{(user?.displayName || 'U').charAt(0).toUpperCase()}</Text>
+              {user?.avatarUrl ? (
+                <Image source={{ uri: user.avatarUrl }} style={styles.profileAvatarImage} />
+              ) : (
+                <Text style={styles.profileAvatarText}>{(user?.displayName || 'U').charAt(0).toUpperCase()}</Text>
+              )}
             </View>
             <Text style={styles.profileText}>Profile</Text>
           </TouchableOpacity>
@@ -186,6 +193,32 @@ export default function GroupsScreen() {
           <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowProfile(false)}>
             <TouchableOpacity activeOpacity={1} style={styles.modalCard}>
               <Text style={styles.modalTitle}>Edit Profile</Text>
+              <View style={styles.profileModalAvatarWrap}>
+                <View style={styles.profileModalAvatar}>
+                  {editAvatarUrl ? (
+                    <Image source={{ uri: editAvatarUrl }} style={styles.profileModalAvatarImage} />
+                  ) : (
+                    <Text style={styles.profileModalAvatarText}>{(displayName || user?.displayName || 'U').charAt(0).toUpperCase()}</Text>
+                  )}
+                </View>
+                <TouchableOpacity
+                  style={styles.uploadPhotoButton}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    launchImageLibrary(
+                      { mediaType: 'photo', selectionLimit: 1, quality: 0.8 },
+                      response => {
+                        const uri = response.assets?.[0]?.uri;
+                        if (uri) {
+                          setEditAvatarUrl(uri);
+                        }
+                      },
+                    );
+                  }}
+                >
+                  <Text style={styles.uploadPhotoButtonText}>Upload photo</Text>
+                </TouchableOpacity>
+              </View>
               <TextInput
                 style={styles.input}
                 value={displayName}
@@ -300,7 +333,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#76d8dd',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
+  profileAvatarImage: { width: '100%', height: '100%' },
   profileAvatarText: { color: '#fff', fontWeight: '800' },
   profileText: { color: '#d7d8ef', fontSize: 16, fontWeight: '700' },
   createButton: {
@@ -420,6 +455,33 @@ const styles = StyleSheet.create({
     padding: 18,
   },
   modalTitle: { color: '#fff', fontSize: 22, fontWeight: '800', marginBottom: 14 },
+  profileModalAvatarWrap: { alignItems: 'center', marginBottom: 12 },
+  profileModalAvatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#2d3566',
+    backgroundColor: '#6f86d7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  profileModalAvatarImage: { width: '100%', height: '100%' },
+  profileModalAvatarText: { color: '#fff', fontSize: 48, fontWeight: '800' },
+  uploadPhotoButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2a2d57',
+    backgroundColor: '#161a39',
+    minHeight: 40,
+    minWidth: 160,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  uploadPhotoButtonText: { color: '#aeb6e8', fontWeight: '700' },
   input: {
     minHeight: 48,
     borderRadius: 14,
