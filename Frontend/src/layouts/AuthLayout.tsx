@@ -1,6 +1,7 @@
 import React from "react";
 import bgImage from "../assets/511517ad616f16850994c6968769fd96.jpg";
 import logo from "../assets/logo.png";
+import "./AuthLayout.css";
 
 type Props = {
   children: React.ReactNode;
@@ -8,55 +9,17 @@ type Props = {
 
 const AuthLayout: React.FC<Props> = ({ children }) => {
   return (
-    <div
-      style={{
-        display: "flex",
-        height: "100vh",
-        width: "100%",
-        position: "relative", 
-      }}
-    >
-      {/* LEFT SIDE */}
-      <div
-        style={{
-          flex: 1,
-          position: "relative",
-          backgroundImage: `url(${bgImage})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
-       
+    <div className="auth-shell">
+      <div className="auth-hero">
+        <img src={logo} alt="StudyBuddies" className="auth-logo-hero" />
       </div>
 
-      
-      <div
-        style={{
-          flex: 1,
-          background: "#050214",
-          color: "white",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-        {children}
+      <div className="auth-panel">
+        <img src={logo} alt="StudyBuddies" className="auth-logo-mobile" />
+        <div className="auth-form-wrap">
+          {children}
+        </div>
       </div>
-
-     
-      <img
-        src={logo}
-        alt="logo"
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%) rotate(13deg)",
-          width: "300px",
-          zIndex: 10,
-          pointerEvents: "none",
-        }}
-      />
     </div>
   );
 };
